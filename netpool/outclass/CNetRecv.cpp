@@ -352,18 +352,25 @@ int CNetRecv::register_connect()
         return 0;
     }
     
+
+#ifdef _WIN32
+    int errno_ll = WSAGetLastError();
+    if (errno_ll != WSAEWOULDBLOCK && errno_ll != WSAEALREADY)
+    {
+        _LOG_ERROR("connect failed, %s:%u %d", m_ipstr, m_port, WSAGetLastError());
+        closesocket(m_fd);
+        m_fd = -1;
+		return -1;
+    }
+#else
     if (errno != EINPROGRESS)
     {
-#ifndef _WIN32
-		_LOG_ERROR("connect failed, %s:%u %s", m_ipstr, m_port, strerror(errno));
+        _LOG_ERROR("connect failed, %s:%u %s", m_ipstr, m_port, strerror(errno));
         close(m_fd);
-#else
-		_LOG_ERROR("connect failed, %s:%u %d", m_ipstr, m_port, WSAGetLastError());
-		closesocket(m_fd);
-#endif
         m_fd = -1;
-        return -1;
+		return -1;
     }
+#endif
 
     m_is_register_connect = true;
     if(false == np_add_write_job(CNetRecv::_connect_callback, m_fd, (void*)this, m_thrd_index))
