@@ -15,7 +15,11 @@
 #include <inttypes.h>
 
 #ifdef _WIN32
+
+#if defined(DLL_EXPORT_NP) //only include windows.h in netpool.dll
 #include <windows.h>
+#endif
+
 #include "stdafx.h"
 #include <direct.h>
 #include <io.h>
