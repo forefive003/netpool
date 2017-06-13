@@ -195,9 +195,9 @@ nextcheck:
     return 0;
 }
 
-DLL_API int sock_read_timeout(int fd, char *buf, size_t len, int second)
+DLL_API int sock_read_timeout(int fd, char *buf, int len, int second)
 {
-    size_t got = 0;
+    int got = 0;
     char err_buf[64] = {0};
 
     int errno_ll = 0;
@@ -232,7 +232,7 @@ DLL_API int sock_read_timeout(int fd, char *buf, size_t len, int second)
                 return 0;
             }
 
-            if ((got += (size_t)n) == len)
+            if ((got += n) == len)
             {
                 break;
             }
@@ -246,7 +246,7 @@ DLL_API int sock_read_timeout(int fd, char *buf, size_t len, int second)
     return got;
 }
 
-DLL_API int sock_write_timeout(int fd, char *buf, size_t len, int second)
+DLL_API int sock_write_timeout(int fd, char *buf, int len, int second)
 {
     int n = 0;
     int send_len = len;
@@ -359,7 +359,7 @@ DLL_API int sock_create_server(uint16_t port)
     int sock_opt = 1;
     int ret;
 
-    server_s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	server_s = (int)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server_s == -1)
     {
 #ifndef _WIN32
@@ -410,7 +410,7 @@ DLL_API int sock_accept(int s, unsigned int *client_ip, uint16_t *client_port)
     struct sockaddr_in sa;
     socklen_t salen = sizeof(sa);
 
-    if ((fd = accept(s, (struct sockaddr *)&sa, &salen)) < 0)
+	if ((fd = (int)accept(s, (struct sockaddr *)&sa, &salen)) < 0)
     {
         return -1;
     }
@@ -432,7 +432,7 @@ DLL_API int sock_connect(const char *addr, uint16_t port)
     int s;
     struct sockaddr_in sa;
 
-    if ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	if ((s = (int)socket(AF_INET, SOCK_STREAM, 0)) < 0)
         return -1;
 
     sa.sin_family = AF_INET;

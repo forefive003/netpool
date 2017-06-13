@@ -33,7 +33,7 @@ void CListenJob::read_evt_handle()
 		struct sockaddr childaddr;
 		int len = sizeof(childaddr);
 
-		conn_fd = accept(m_fd, &childaddr, (socklen_t*)&len);
+		conn_fd = (int)accept(m_fd, &childaddr, (socklen_t*)&len);
 		if (conn_fd == -1)
 		{
 #ifdef _WIN32

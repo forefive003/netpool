@@ -201,7 +201,7 @@ BOOL CThreadPool::Init(unsigned int minThreads, unsigned int maxThreads,
     m_beat_func = beat_func;
     m_exit_func = exit_func;
 
-    unsigned int i = m_ThreadPool.size();
+    unsigned int i = (unsigned int)m_ThreadPool.size();
 
     unsigned int core_id = 0;
 
@@ -295,7 +295,7 @@ BOOL CThreadPool::Execute(Runnable * pRunnable)
     }
 
     unsigned int taskCnt = GetTaskSize();
-    unsigned int threadCnt = m_ThreadPool.size();
+	unsigned int threadCnt = (unsigned int)m_ThreadPool.size();
     ///////////////////*如果所有任务忙或队列里面有任务,尝试创建新的线程*/
     /*有些平台上起线程快, Excute后taskCnt就变成了0, 再次进入时需要判断是否所有线程都忙
     有些平台又慢, Excute后并不是所有都忙, 也会导致不创建新线程
@@ -352,7 +352,7 @@ Runnable * CThreadPool::GetOneTask()
 
 unsigned int CThreadPool::GetThreadPoolSize()
 {
-    return m_ThreadPool.size();
+	return (unsigned int)m_ThreadPool.size();
 }
 
 unsigned int CThreadPool::GetTaskSize()
@@ -360,7 +360,7 @@ unsigned int CThreadPool::GetTaskSize()
 	unsigned int ret = 0;
 
 	MUTEX_LOCK(m_csTasksLock);
-	ret = m_Tasks.size();
+	ret = (unsigned int)m_Tasks.size();
 	MUTEX_UNLOCK(m_csTasksLock);
 
 	return ret;

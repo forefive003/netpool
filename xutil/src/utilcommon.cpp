@@ -35,7 +35,7 @@ DLL_API int util_creatdir(char *pDir)
     }
 
     pszDir = STRDUP(pDir);
-    iLen = strlen(pszDir);
+    iLen = (int)strlen(pszDir);
 
     if (pszDir[0] == '/')
     {

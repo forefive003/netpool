@@ -31,8 +31,8 @@ DLL_API bool sock_set_block(int fd);
 DLL_API bool sock_set_unblock(int fd);
 DLL_API int sock_readable(int fd, int second);
 DLL_API int sock_writeable(int fd, int second);
-DLL_API int sock_read_timeout(int fd, char *buf, size_t len, int second);
-DLL_API int sock_write_timeout(int fd, char *buf, size_t len, int second);
+DLL_API int sock_read_timeout(int fd, char *buf, int len, int second);
+DLL_API int sock_write_timeout(int fd, char *buf, int len, int second);
 DLL_API int sock_send_line(int fd, const char *format, ...);
 DLL_API int sock_recv_line(int fd, char *buf, size_t bufsiz, int eof_ok);
 

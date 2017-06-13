@@ -327,7 +327,7 @@ void CNetRecv::unregister_read()
 
 int CNetRecv::register_connect()
 {
-    if ((m_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if ((m_fd = (int)socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         _LOG_ERROR("create socket failed");
         return -1;

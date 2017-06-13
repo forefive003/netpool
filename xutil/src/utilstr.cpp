@@ -36,7 +36,7 @@ DLL_API char *util_str_trim(char *src, char find)
 		i++;
 	}
 
-	for (i = strlen(src) - 1; i >= 0; i--)
+	for (i = (int)strlen(src) - 1; i >= 0; i--)
 	{
 		if (src[i] != find)
 		{
@@ -164,7 +164,7 @@ DLL_API int util_stristr(char *haystack, int haystack_len, char *str)
         if (a == b)
         {
             if (++match_count == str_len)
-                return (ptr - haystack);
+                return int(ptr - haystack);
         }
         else
             match_count = 0;

@@ -151,9 +151,9 @@ static int engine_ip_parse_range_ipv4(char *ipstr, engine_ip_range_t *ipRange)
         else
         {
             /*192.168.1.1-60, 取192.168.1. 加上60*/
-            len = pch - ipstr + 1;
+            len = (int)(pch - ipstr + 1);
             util_strncpy(str, ipstr, len);
-			util_strncpy(str + len, p, strlen(p));
+			util_strncpy(str + len, p, (int)strlen(p));
             p = str;
 
             if (engine_str_to_ipv4(p, &ipval) != 0)
@@ -328,9 +328,9 @@ static int engine_ip_parse_range_ipv6(char *ipstr, engine_ip_range_t *ipRange)
         else
         {
             /*2001:1001::23-ff, 取2001:1001:: 加上ff*/
-            len = pch - ipstr + 1;
+            len = (int)(pch - ipstr + 1);
 			util_strncpy(str, ipstr, len);
-			util_strncpy(str + len, p, strlen(p));
+			util_strncpy(str + len, p, (int)strlen(p));
             p = str;
 
             if (engine_str_to_ipv6(p, &ipval) != 0)

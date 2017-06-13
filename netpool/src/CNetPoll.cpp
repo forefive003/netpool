@@ -240,7 +240,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		if (maxFd == 0)
 		{
 			FD_SET(hSocket, &rset);
-			maxFd = hSocket;
+			maxFd = (int)hSocket;
 		}
 
 		struct timeval tv;
