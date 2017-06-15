@@ -76,6 +76,7 @@
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>$(ProjectDir)\;$(ProjectDir)\netpool\include;$(ProjectDir)\netpool\outclass;$(ProjectDir)\xutil\include;$(IncludePath)</IncludePath>
     <TargetName>netpool</TargetName>
+    <OutDir>$(SolutionDir)\..\$(Configuration)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>

@@ -433,7 +433,10 @@ DLL_API int sock_connect(const char *addr, uint16_t port)
     struct sockaddr_in sa;
 
 	if ((s = (int)socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        return -1;
+	{
+		int error = WSAGetLastError();
+		return -1;
+	}
 
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
