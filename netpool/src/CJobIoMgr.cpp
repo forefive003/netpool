@@ -109,14 +109,16 @@ int CIoJobMgr::walk_to_set_sets(fd_set &rset, fd_set &wset)
         {
             FD_SET(fd, &rset);
         }
-        else if (pIoJob->io_event_write())
+        if (pIoJob->io_event_write())
         {
             FD_SET(fd, &wset);
         }
+#if 0
         else
         {
             _LOG_ERROR("fd event invalid when set.");
         }
+#endif
     }
 
     MUTEX_UNLOCK(m_job_lock);
@@ -148,17 +150,20 @@ void CIoJobMgr::walk_to_handle_sets(fd_set &rset, fd_set &wset)
                 pIoJob->read_evt_handle();
             }
         }
-        else if (pIoJob->io_event_write())
+        
+		if (pIoJob->io_event_write())
         {
             if(FD_ISSET(fd, &wset))
             {
                 pIoJob->write_evt_handle();
             }
         }
+#if 0
         else
         {
             _LOG_ERROR("fd event invalid when handle.");
         }
+#endif
     }
 
     MUTEX_UNLOCK(m_job_lock);
