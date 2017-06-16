@@ -56,11 +56,11 @@ void CNetAccept::_accept_callback(int  cli_fd, void* param1)
 
     client_ipaddr = ntohl(addrMy.sin_addr.s_addr);
     client_port = ntohs(addrMy.sin_port);
-    _LOG_INFO("accept new obj on port %u: 0x%x/%u, fd %u", acptObj->m_listen_port, client_ipaddr, client_port, cli_fd);
+    _LOG_DEBUG("accept new obj on port %u: 0x%x/%u, fd %u", acptObj->m_listen_port, client_ipaddr, client_port, cli_fd);
     
     if (0 != acptObj->accept_handle(cli_fd, client_ipaddr, client_port))
     {
-        _LOG_ERROR("failed to create client");
+        _LOG_ERROR("failed to handle accept");
 #ifndef _WIN32
 		close(cli_fd);
 #else
