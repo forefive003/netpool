@@ -153,7 +153,7 @@ int CNetRecv::init_local_ipinfo()
     m_local_ipaddr = ntohl(name.sin_addr.s_addr);
     m_local_port = ntohs(name.sin_port);
 
-	if (NULL == engine_ipv4_to_str(htonl(m_local_ipaddr), m_ipstr))
+	if (NULL == engine_ipv4_to_str(htonl(m_local_ipaddr), m_local_ipstr))
 	{
 		_LOG_ERROR("ip to str failed.");
 		return -1;
@@ -496,7 +496,7 @@ free_nodes:
 
         if (m_cur_send_node != NULL)
         {
-            m_free_mem_func(queue_node);
+            m_free_mem_func(m_cur_send_node);
             count++;
         }    
 
@@ -629,9 +629,9 @@ int CNetRecv::send_handle()
         }
     }
 
-    if (count > 3)
+    if (count > 0)
     {
-        _LOG_INFO("(peer %s/%u, local %s/%u) fd %d async write %d node, bytes %u.", 
+        _LOG_DEBUG("(peer %s/%u, local %s/%u) fd %d async write %d node, bytes %u.", 
             m_ipstr, m_port, 
             m_local_ipstr,  m_local_port, m_fd, count, bytes);
     }
