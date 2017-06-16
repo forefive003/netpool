@@ -63,7 +63,14 @@ nextcheck:
 
     int errno_ll = 0;
 
-    cnt = select(fd+1, &r_fds, NULL, &e_fds, &tv);
+    if (second != -1)
+    {
+        cnt = select(fd+1, &r_fds, NULL, &e_fds, &tv);
+    }
+    else
+    {
+        cnt = select(fd+1, &r_fds, NULL, &e_fds, NULL);
+    }
     if (cnt < 0)
     {
 #ifdef _WIN32 
@@ -134,10 +141,16 @@ nextcheck:
     FD_ZERO(&w_fds);
     FD_SET(fd, &w_fds);
 
-    tv.tv_sec = second;
-    tv.tv_usec = 0;
-
-    cnt = select(fd + 1, NULL, &w_fds, NULL, &tv);
+    if (second != -1)
+    {
+        tv.tv_sec = second;
+        tv.tv_usec = 0;
+        cnt = select(fd + 1, NULL, &w_fds, NULL, &tv);
+    }
+    else
+    {
+        cnt = select(fd + 1, NULL, &w_fds, NULL, NULL);
+    }
     if (cnt < 0)
     {
 #ifdef _WIN32 
@@ -434,7 +447,7 @@ DLL_API int sock_connect(const char *addr, uint16_t port)
 
 	if ((s = (int)socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
-		int error = WSAGetLastError();
+		//int error = WSAGetLastError();
 		return -1;
 	}
 
