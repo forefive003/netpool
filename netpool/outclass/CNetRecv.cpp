@@ -274,6 +274,42 @@ void CNetRecv::_connect_callback(int  fd, void* param1)
     int err = 0;
     socklen_t err_len = sizeof (err);
     
+#if 0
+    int sock_opt = 0;
+    int optlen = 0;
+
+    if ((getsockopt(recvObj->m_fd, SOL_SOCKET, SO_RCVLOWAT, (char*)&sock_opt, (int*)&optlen)) == -1)
+    {
+#ifndef _WIN32
+        _LOG_ERROR("getsockopt failed, %s\n", strerror(errno));
+#else
+        _LOG_ERROR("getsockopt failed, %d\n", WSAGetLastError());
+#endif        
+    }
+    _LOG_WARN("test1, opt %d", sock_opt);
+
+    sock_opt=100;
+    if ((setsockopt(recvObj->m_fd, SOL_SOCKET, SO_RCVLOWAT, (char*)&sock_opt, (int)sizeof(sock_opt))) == -1)
+    {
+#ifndef _WIN32
+        _LOG_ERROR("setsockopt failed, %s\n", strerror(errno));
+#else
+        _LOG_ERROR("setsockopt failed, %d\n", WSAGetLastError());
+#endif        
+    }
+
+    sock_opt = 0;
+    if ((getsockopt(recvObj->m_fd, SOL_SOCKET, SO_RCVLOWAT, (char*)&sock_opt, (int*)&optlen)) == -1)
+    {
+#ifndef _WIN32
+        _LOG_ERROR("getsockopt failed, %s\n", strerror(errno));
+#else
+        _LOG_ERROR("getsockopt failed, %d\n", WSAGetLastError());
+#endif        
+    }
+    _LOG_WARN("test2, opt %d", sock_opt);
+
+
     ret = getsockopt(recvObj->m_fd, SOL_SOCKET, SO_ERROR, (char*)&err, &err_len);
     if (err == 0 && ret == 0)
     {
@@ -284,11 +320,17 @@ void CNetRecv::_connect_callback(int  fd, void* param1)
     else
     {
         char err_buf[64] = {0};
+#ifdef _WIN32
+        _LOG_WARN("(%s/%u) fd %d connect failed, err:%d", 
+            recvObj->m_ipstr, recvObj->m_port, recvObj->m_fd, WSAGetLastError());
+#else
         _LOG_WARN("(%s/%u) fd %d connect failed, err:%s", 
             recvObj->m_ipstr, recvObj->m_port, recvObj->m_fd, str_error_s(err_buf, 32, err));
+#endif
         recvObj->connect_handle(false);
     }
-    
+#endif
+
     /*unregister connect event if no write event register*/
     if (false == recvObj->m_is_register_write
         && true == recvObj->m_is_register_connect)
@@ -445,9 +487,15 @@ void CNetRecv::free_async_write_resource()
                                         DEF_WR_TIMEOUT))
                 {
                     char err_buf[64] = {0};
+#ifdef _WIN32
+                    _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
+                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
+                        WSAGetLastError());
+#else
                     _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
                         m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
                         str_error_s(err_buf, 32, errno));
+#endif
 
                     m_free_mem_func(m_cur_send_node);
                     m_cur_send_node = NULL;
@@ -470,10 +518,15 @@ void CNetRecv::free_async_write_resource()
                                         DEF_WR_TIMEOUT))
                 {
                     char err_buf[64] = {0};
+#ifdef _WIN32
+                    _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
+                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
+                        WSAGetLastError());
+#else
                     _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
                         m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
                         str_error_s(err_buf, 32, errno));
-
+#endif
                     m_free_mem_func((void*)buf_node);
                     goto free_nodes;
                 }
@@ -538,9 +591,16 @@ int CNetRecv::send_buf_node(buf_node_t *buf_node)
             else
             {
                 char err_buf[64] = {0};
+#ifdef _WIN32
+                _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
+                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
+                        WSAGetLastError());
+#else
                 _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
                         m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
                         str_error_s(err_buf, 32, errno));
+#endif
+
                 /*返回-1后直接free, 类似recv处理失败*/
                 return -1;
             }
@@ -665,9 +725,15 @@ int CNetRecv::send_data(char *buf, int buf_len)
         if ( buf_len != sock_write_timeout(m_fd, buf, buf_len, DEF_WR_TIMEOUT))
         {
             char err_buf[64] = {0};
+#ifdef _WIN32
+            _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
+                m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
+                WSAGetLastError());
+#else
             _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
                 m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
                 str_error_s(err_buf, 32, errno));
+#endif
             return -1;
         }
         return 0;

@@ -148,8 +148,7 @@ DLL_API BOOL np_init()
 	WSADATA  Ws;
 	if (WSAStartup(MAKEWORD(2,2), &Ws) != 0 )
 	{
-		_LOG_ERROR("Init Windows Socket Failed, %s!",
-					str_error_s(err_buf, sizeof(err_buf), errno));
+		_LOG_ERROR("Init Windows Socket Failed, %d!", WSAGetLastError());
 		return false;
 	}
 #endif

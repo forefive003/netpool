@@ -459,14 +459,13 @@ BOOL CNetPoll::add_read_job(read_hdl_func io_func,
 
 	job_node->lock();
 	
-#ifndef _WIN32
-	struct epoll_event ev;
-	memset(&ev, 0, sizeof(ev));
-	ev.data.ptr = (void*)job_node;
-	ev.events = EPOLLIN | EPOLLET;
 	if (job_node->io_event_write())
 	{
-		ev.events |= EPOLLOUT;
+#ifndef _WIN32
+		struct epoll_event ev;
+		memset(&ev, 0, sizeof(ev));
+		ev.data.ptr = (void*)job_node;
+		ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
 		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
 		{
 			job_node->unlock();
@@ -476,9 +475,17 @@ BOOL CNetPoll::add_read_job(read_hdl_func io_func,
 								errno, str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
+#endif
+		_LOG_INFO("modify job, add read to write job, fd %d.", fd);
 	}
-	else
+	/*¼Ó¸öÅÐ¶Ï,±ÜÃâÖØ¸´add read job*/
+	else if (!job_node->io_event_read())
 	{
+#ifndef _WIN32
+		struct epoll_event ev;
+		memset(&ev, 0, sizeof(ev));
+		ev.data.ptr = (void*)job_node;
+		ev.events = EPOLLIN | EPOLLET;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
 			job_node->unlock();
@@ -487,14 +494,14 @@ BOOL CNetPoll::add_read_job(read_hdl_func io_func,
 					 str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}	
-	}
-	
 #endif
+
+		_LOG_INFO("modify job, add read event, fd %d.", fd);
+	}
 	
 	job_node->set_read_callback((void*)io_func);
 	job_node->add_read_io_event();
 	job_node->init_recv_buf(bufferSize);
-	_LOG_INFO("modify job, add read event, fd %d.", fd);
 
 	job_node->unlock();	
 	g_IoJobMgr->unlock();

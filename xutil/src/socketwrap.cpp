@@ -480,6 +480,8 @@ DLL_API int sock_connect(const char *addr, uint16_t port)
 
     /* FIXME: it may block! */
     if (connect(s, (struct sockaddr*)&sa, sizeof(sa)) == 0) {
+        /*set to block*/
+        sock_set_block(s);
         return s;
     }
     
