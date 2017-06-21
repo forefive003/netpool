@@ -235,7 +235,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		g_IoJobMgr->handle_deling_job(evt_fd_index);
 
 		int maxFd = 0;
-		maxFd = g_IoJobMgr->walk_to_set_sets(rset, wset);
+		maxFd = g_IoJobMgr->walk_to_set_sets(&rset, &wset);
 		//windows select must has one fd
 		if (maxFd == 0)
 		{
@@ -261,7 +261,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		}
 		else if (fd_num > 0)
 		{
-			g_IoJobMgr->walk_to_handle_sets(rset, wset);
+			g_IoJobMgr->walk_to_handle_sets(&rset, &wset);
 		}
 
 		/*do timeout jobs*/

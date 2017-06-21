@@ -83,7 +83,7 @@ void CIoJobMgr::unlock()
 }
 
 
-int CIoJobMgr::walk_to_set_sets(fd_set &rset, fd_set &wset)
+int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset)
 {
     IOJOB_LIST_Itr itr;
     CIoJob *pIoJob = NULL;
@@ -107,11 +107,13 @@ int CIoJobMgr::walk_to_set_sets(fd_set &rset, fd_set &wset)
 
         if (pIoJob->io_event_read())
         {
-            FD_SET(fd, &rset);
+            _LOG_ERROR("set fd %d to read", fd);
+            FD_SET(fd, rset);
         }
         if (pIoJob->io_event_write())
         {
-            FD_SET(fd, &wset);
+            _LOG_ERROR("set fd %d to write", fd);
+            FD_SET(fd, wset);
         }
 #if 0
         else
@@ -126,7 +128,7 @@ int CIoJobMgr::walk_to_set_sets(fd_set &rset, fd_set &wset)
     return maxFd;
 }
 
-void CIoJobMgr::walk_to_handle_sets(fd_set &rset, fd_set &wset)
+void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset)
 {
     IOJOB_LIST_Itr itr;
     CIoJob *pIoJob = NULL;
@@ -145,16 +147,18 @@ void CIoJobMgr::walk_to_handle_sets(fd_set &rset, fd_set &wset)
 
         if (pIoJob->io_event_read())
         {
-            if(FD_ISSET(fd, &rset))
+            if(FD_ISSET(fd, rset))
             {
+                _LOG_ERROR("fd %d read evt comming", fd);
                 pIoJob->read_evt_handle();
             }
         }
         
 		if (pIoJob->io_event_write())
         {
-            if(FD_ISSET(fd, &wset))
+            if(FD_ISSET(fd, wset))
             {
+                _LOG_ERROR("fd %d write evt comming", fd);
                 pIoJob->write_evt_handle();
             }
         }
