@@ -224,8 +224,10 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	{
 		fd_set rset;
 		fd_set wset;
+		fd_set eset;
 		FD_ZERO(&rset);
 		FD_ZERO(&wset);
+		FD_ZERO(&eset);
 
 		if (pollObj->m_beat_func != NULL)
 		{
@@ -235,7 +237,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		g_IoJobMgr->handle_deling_job(evt_fd_index);
 
 		int maxFd = 0;
-		maxFd = g_IoJobMgr->walk_to_set_sets(&rset, &wset);
+		maxFd = g_IoJobMgr->walk_to_set_sets(&rset, &wset, &eset);
 		//windows select must has one fd
 		if (maxFd == 0)
 		{
@@ -246,7 +248,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		struct timeval tv;
 		tv.tv_sec = EPOLL_TIMEOUT;
 		tv.tv_usec = 0;
-		fd_num = select(maxFd + 1, &rset, &wset, NULL, &tv);
+		fd_num = select(maxFd + 1, &rset, &wset, &eset, &tv);
 		if (fd_num < 0)
 		{
 			DWORD dwError = WSAGetLastError();
@@ -261,7 +263,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		}
 		else if (fd_num > 0)
 		{
-			g_IoJobMgr->walk_to_handle_sets(&rset, &wset);
+			g_IoJobMgr->walk_to_handle_sets(&rset, &wset, &eset);
 		}
 
 		/*do timeout jobs*/

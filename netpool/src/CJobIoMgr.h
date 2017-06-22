@@ -30,8 +30,8 @@ public:
 	void lock();
 	void unlock();
 
-	int walk_to_set_sets(fd_set *rset, fd_set *wset);
-	void walk_to_handle_sets(fd_set *rset, fd_set *wset);
+	int walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset);
+	void walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset);
 	void handle_deling_job(unsigned int thrd_index);
 private:
 	MUTEX_TYPE m_job_lock;
