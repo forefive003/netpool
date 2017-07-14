@@ -308,7 +308,7 @@ void CNetRecv::_connect_callback(int  fd, void* param1)
 #endif        
     }
     _LOG_WARN("test2, opt %d", sock_opt);
-
+#endif
 
     ret = getsockopt(recvObj->m_fd, SOL_SOCKET, SO_ERROR, (char*)&err, &err_len);
     if (err == 0 && ret == 0)
@@ -329,7 +329,6 @@ void CNetRecv::_connect_callback(int  fd, void* param1)
 #endif
         recvObj->connect_handle(false);
     }
-#endif
 
     /*unregister connect event if no write event register*/
     if (false == recvObj->m_is_register_write

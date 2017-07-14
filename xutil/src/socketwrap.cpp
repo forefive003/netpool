@@ -17,6 +17,7 @@
 
 #include "commtype.h"
 #include "socketwrap.h"
+#include "engine_ip.h"
 
 DLL_API bool sock_set_block(int fd)
 {
@@ -358,9 +359,13 @@ static int _bind_server(int server_s, char *server_ip, uint16_t server_port)
     memset(&server_sockaddr, 0, sizeof server_sockaddr);
     server_sockaddr.sin_family = AF_INET;
 	if (server_ip != NULL)
-		inet_pton(AF_INET, server_ip, &server_sockaddr.sin_addr);
+    {
+		engine_str_to_ipv4(server_ip, (uint32_t*)&server_sockaddr.sin_addr.s_addr);
+    }
     else
+    {
         server_sockaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    }
     server_sockaddr.sin_port = htons(server_port);
     return bind(server_s, (struct sockaddr *) &server_sockaddr,
             sizeof(server_sockaddr));
@@ -453,7 +458,7 @@ DLL_API int sock_connect(const char *addr, uint16_t port)
 
     sa.sin_family = AF_INET;
     sa.sin_port = htons(port);
-		if (inet_pton(AF_INET, addr, &sa.sin_addr) == 0) {
+	if (engine_str_to_ipv4(addr, (uint32_t*)&sa.sin_addr.s_addr) == 0) {
         struct hostent *he;
 
         /*

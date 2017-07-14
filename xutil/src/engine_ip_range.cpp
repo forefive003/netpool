@@ -14,9 +14,9 @@ char* ipv4_bits_to_netmask(unsigned int mask, char *mask_buf)
 {
     uint32_t ip = htonl(0xffffffff << ( 32- mask));
 
-    if (inet_ntop(AF_INET, (void*)&ip, mask_buf, HOST_IP_LEN) == NULL)
+    if (engine_ipv4_to_str(ip, mask_buf) == NULL)
     {
-        fprintf(stderr, "inet_ntop failed.\n");
+        fprintf(stderr, "engine_ipv4_to_str failed.\n");
         return NULL;
     }
 

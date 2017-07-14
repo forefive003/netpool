@@ -13,7 +13,7 @@
 #include <dirent.h>
 #else
 #include <windows.h>
-#include <minwindef.h>
+//#include <minwindef.h>
 #endif
 
 #include "utilstr.h"
