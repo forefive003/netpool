@@ -51,6 +51,11 @@ CIoJob* CIoJobMgr::find_io_job(int fd)
         pIoJob = *itr;
         if (pIoJob->get_fd() == fd)
         {
+            if (pIoJob->get_deleting_flag())
+            {
+                return NULL;
+            }
+
             return pIoJob;
         }
     }
@@ -65,12 +70,14 @@ void CIoJobMgr::add_io_job(CIoJob* ioJob)
     MUTEX_UNLOCK(m_job_lock);
 }
 
+#if 0
 void CIoJobMgr::del_io_job(CIoJob* ioJob)
 {
 	MUTEX_LOCK(m_job_lock);
     m_io_jobs.remove(ioJob);
     MUTEX_UNLOCK(m_job_lock);
 }
+#endif
 
 void CIoJobMgr::lock()
 {
@@ -139,10 +146,16 @@ void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset)
             itr != m_io_jobs.end(); )
     {
         pIoJob = *itr;
-
+        
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
-        
+
+        if (pIoJob->get_deleting_flag())
+        {
+            //已经设置为删�?不再处理
+            continue;
+        }
+
         int fd = pIoJob->get_fd();
 
         if (pIoJob->io_event_read())
@@ -172,32 +185,29 @@ void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset)
                 pIoJob->write_evt_handle();
             }
         }
-#if 0
-        else
-        {
-            _LOG_ERROR("fd event invalid when handle.");
-        }
-#endif
     }
 
     MUTEX_UNLOCK(m_job_lock);
 }
 
-
+#if 0
 void CIoJobMgr::move_to_deling_job(CIoJob* ioJob)
 {
     MUTEX_LOCK(m_job_lock);
     m_del_io_jobs.push_back(ioJob);
     MUTEX_UNLOCK(m_job_lock);
 }
+#endif
 
 void CIoJobMgr::handle_deling_job(unsigned int thrd_index)
 {
     IOJOB_LIST_Itr itr;
     IOJOB_LIST deleted_job;
+	CIoJob *pIoJob = NULL;
 
     /*avoid to call free_callback in lock*/
     MUTEX_LOCK(m_job_lock);
+    #if 0
     for (itr = m_del_io_jobs.begin();
             itr != m_del_io_jobs.end(); )
     {
@@ -210,6 +220,24 @@ void CIoJobMgr::handle_deling_job(unsigned int thrd_index)
         else
         {
             itr++;
+        }
+    }
+    #endif
+    for (itr = m_io_jobs.begin();
+            itr != m_io_jobs.end(); )
+    {
+        pIoJob = *itr;
+        
+        /*maybe timenode deleted in callback func, after that, itr not valid*/
+        itr++;
+
+        if (pIoJob->get_thrd_index() == thrd_index)
+        {
+            if (pIoJob->get_deleting_flag())
+            {
+                m_io_jobs.remove(pIoJob);
+                deleted_job.push_back(pIoJob);
+            }
         }
     }
     MUTEX_UNLOCK(m_job_lock);

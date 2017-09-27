@@ -285,8 +285,8 @@ DLL_API int sock_write_timeout(int fd, char *buf, int len, int second)
                 if (errno_ll == EINTR && errno_ll == EWOULDBLOCK && errno_ll == EAGAIN)
                     continue;
 #endif      
-                printf("safe_write failed to write %ld bytes, %s.\n",
-                    (long)len, str_error_s(err_buf, 32, errno_ll));
+//                printf("safe_write failed to write %ld bytes, %s.\n",
+//                    (long)len, str_error_s(err_buf, 32, errno_ll));
                 return 0;
             }
 

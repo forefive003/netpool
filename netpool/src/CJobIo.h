@@ -53,6 +53,10 @@ public:
     {
     	return m_fd;
     }
+    inline BOOL get_deleting_flag()
+    {
+    	return m_is_want_delete;
+    }
     inline void set_deleting_flag()
     {
     	m_is_want_delete = true;

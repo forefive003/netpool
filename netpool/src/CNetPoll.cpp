@@ -380,9 +380,10 @@ BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
 		return false;
 	}
 	job_node->set_free_callback((void*)free_func);
+	job_node->set_deleting_flag();
 
-	g_IoJobMgr->del_io_job(job_node);
-	g_IoJobMgr->move_to_deling_job(job_node);
+	//g_IoJobMgr->del_io_job(job_node);
+	//g_IoJobMgr->move_to_deling_job(job_node);
 
 	g_IoJobMgr->unlock();
 
@@ -558,15 +559,15 @@ BOOL CNetPoll::del_read_job(int fd, free_hdl_func free_func)
 #endif
 		_LOG_INFO("del read event and del job, fd %d", fd);
 		job_node->set_deleting_flag();
-		g_IoJobMgr->del_io_job(job_node);
-		g_IoJobMgr->move_to_deling_job(job_node);
+		//g_IoJobMgr->del_io_job(job_node);
+		//g_IoJobMgr->move_to_deling_job(job_node);
 	}
 	else
 	{
 		/*有可能job上什么事件都没有*/
 		job_node->set_deleting_flag();
-		g_IoJobMgr->del_io_job(job_node);
-		g_IoJobMgr->move_to_deling_job(job_node);
+		//g_IoJobMgr->del_io_job(job_node);
+		//g_IoJobMgr->move_to_deling_job(job_node);
 
 		_LOG_INFO("del read job, fd %d.", fd);
 	}
@@ -735,14 +736,14 @@ BOOL CNetPoll::del_write_job(int fd, free_hdl_func free_func)
 		_LOG_INFO("del write event and del job, fd %d", fd);
 
 		job_node->set_deleting_flag();
-		g_IoJobMgr->del_io_job(job_node);
-		g_IoJobMgr->move_to_deling_job(job_node);
+		//g_IoJobMgr->del_io_job(job_node);
+		//g_IoJobMgr->move_to_deling_job(job_node);
 	}
 	else
 	{
 		job_node->set_deleting_flag();
-		g_IoJobMgr->del_io_job(job_node);
-		g_IoJobMgr->move_to_deling_job(job_node);
+		//g_IoJobMgr->del_io_job(job_node);
+		//g_IoJobMgr->move_to_deling_job(job_node);
 
 		_LOG_INFO("del write job, fd %d.", fd);
 	}
@@ -819,7 +820,8 @@ void CNetPoll::let_stop()
 {
 	/*set to shutdown all thread*/
 	m_isShutDown = true;
-	_LOG_INFO("let loop to exit.");
+	/*maybe call this function in signal func, which easy to cause dead lock*/
+	//_LOG_INFO("let loop to exit.");
 }
 
 void CNetPoll::wait_stop()

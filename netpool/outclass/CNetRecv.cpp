@@ -26,50 +26,54 @@
 
 CNetRecv::CNetRecv(char *ipstr, uint16_t port, int fd) throw(std::runtime_error)
 {
+    init_common_data();
+
     if (-1 == init_peer_ipinfo(ipstr, port))
     {
         throw(std::runtime_error("Invalid server ip"));
     }
 
-    m_fd = fd;
-    init_common_data();
+    m_fd = fd;    
     _LOG_DEBUG("construct NetRecv(%s/%u), fd %d", m_ipstr, m_port, m_fd);
 }
 
 CNetRecv::CNetRecv(uint32_t ipaddr, uint16_t port, int fd) throw(std::runtime_error)
 {
+    init_common_data();
+
     if (-1 == init_peer_ipinfo(ipaddr, port))
     {
         throw(std::runtime_error("Invalid server ip"));
     }
 
     m_fd = fd;
-    init_common_data();
     _LOG_DEBUG("construct1 NetRecv(%s/%u), fd %d", m_ipstr, m_port, m_fd);
 }
 
 CNetRecv::CNetRecv(uint32_t ipaddr, uint16_t port) throw(std::runtime_error)
 {
+    init_common_data();
+
     if (-1 == init_peer_ipinfo(ipaddr, port))
     {
         throw(std::runtime_error("Invalid server ip"));
     }
 
     m_fd = -1;
-    init_common_data();
     _LOG_DEBUG("construct2 NetRecv(%s/%u)", m_ipstr, m_port, m_fd);
 }
 
 
 CNetRecv::CNetRecv(char *ipstr, uint16_t port) throw(std::runtime_error)
 {
+    init_common_data();
+
     if (-1 == init_peer_ipinfo(ipstr, port))
     {
         throw(std::runtime_error("Invalid server ip"));
     }
 
     m_fd = -1;
-    init_common_data();
     _LOG_DEBUG("construct3 NetRecv(%s/%u)", m_ipstr, m_port, m_fd);
 }
 
@@ -82,6 +86,16 @@ CNetRecv::~CNetRecv()
 
 void CNetRecv::init_common_data()
 {
+    m_is_connected = false;
+
+    m_ipaddr = 0;
+    memset(m_ipstr, 0, sizeof(m_ipstr));
+    m_port = 0;
+
+    m_local_ipaddr = 0;
+    memset(m_local_ipstr, 0, sizeof(m_local_ipstr));
+    m_local_port = 0;
+
     m_thrd_index = 0;
 
     m_is_register_write = false;

@@ -61,36 +61,45 @@ DLL_API int util_strlen(char *str)
 }
 
 
-DLL_API bool util_strncmp(char *str1, char *str2, int len)
+DLL_API int util_strncmp(char *s1, char *s2, int n)
 {
-    int l1 = util_strlen(str1), l2 = util_strlen(str2);
-
-    if (l1 < len || l2 < len)
-        return false;
-
-    while (len--)
-    {
-        if (*str1++ != *str2++)
-            return false;
-    }
-
-    return true;
+    //assert((s1!=NULL)&&(s2!=NULL));  
+  
+    while(*s1!='\0'&&*s2!='\0'&&n)
+    {  
+        if(*s1-*s2>0)  
+            return 1;  
+        if(*s1-*s2<0)  
+            return -1;  
+        s1++;  
+        s2++;  
+        n--;  
+    }  
+    if(*s1=='\0'&&*s2!='\0')
+        return -1;  
+    if(*s2=='\0'&&*s1!='\0')  
+        return 1;  
+    return 0; 
 }
 
-DLL_API bool util_strcmp(char *str1, char *str2)
+DLL_API int util_strcmp(char *s1, char *s2)
 {
-    int l1 = util_strlen(str1), l2 = util_strlen(str2);
-
-    if (l1 != l2)
-        return false;
-
-    while (l1--)
-    {
-        if (*str1++ != *str2++)
-            return false;
-    }
-
-    return true;
+    //assert((s1!=NULL)&&(s2!=NULL));  
+  
+    while(*s1!='\0'&&*s2!='\0')
+    {  
+        if(*s1-*s2>0)  
+            return 1;  
+        if(*s1-*s2<0)  
+            return -1;  
+        s1++;  
+        s2++;  
+    }  
+    if(*s1=='\0'&&*s2!='\0')
+        return -1;  
+    if(*s2=='\0'&&*s1!='\0')  
+        return 1;  
+    return 0; 
 }
 
 DLL_API int util_strncpy(char *dst, char *src, int len)

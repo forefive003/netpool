@@ -109,9 +109,10 @@ int CNetAccept::register_accept()
         return -1;
     }
 
-    _LOG_INFO("listen on port %u, fd %d", m_listen_port, m_listen_fd);
     sock_set_unblock(m_listen_fd);
     np_add_listen_job(CNetAccept::_accept_callback, m_listen_fd, (void*)this);
+    
+    _LOG_INFO("listen on port %u, fd %d", m_listen_port, m_listen_fd);
     return 0;
 }
 

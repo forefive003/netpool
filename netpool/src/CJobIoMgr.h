@@ -24,9 +24,11 @@ public:
 public:
 	CIoJob* find_io_job(int fd);
 	void add_io_job(CIoJob* ioJob);
-	void del_io_job(CIoJob* ioJob);
+	#if 0
+	void del_io_job(CIoJob* ioJob);	
 	void move_to_deling_job(CIoJob* ioJob);
-
+	#endif
+	
 	void lock();
 	void unlock();
 
@@ -36,7 +38,9 @@ public:
 private:
 	MUTEX_TYPE m_job_lock;
 	IOJOB_LIST m_io_jobs;
+	#if 0
 	IOJOB_LIST m_del_io_jobs;
+	#endif
 };
 
 extern CIoJobMgr *g_IoJobMgr;
