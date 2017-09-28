@@ -24,6 +24,11 @@
 #include "socketwrap.h"
 #include "CNetRecv.h"
 
+
+#define DEF_WR_TIMEOUT -1
+//#define DEF_RD_TIMEOUT 3
+
+
 CNetRecv::CNetRecv(char *ipstr, uint16_t port, int fd) throw(std::runtime_error)
 {
     init_common_data();
