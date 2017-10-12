@@ -92,8 +92,7 @@ void CWrIoJob::write_evt_handle()
 	}
 
 	this->lock();
-	g_NetPoll->del_io_writing_evt(this);
-	this->del_write_io_event();
+	g_NetPoll->pause_io_writing_evt(this);
 	this->unlock();
 	
 	m_write_func(m_fd, m_param1);

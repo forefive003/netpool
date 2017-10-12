@@ -100,6 +100,7 @@ public:
 	{
 		return m_thrd_index;
 	}
+	
 private:
 	unsigned int m_thrd_index;
 

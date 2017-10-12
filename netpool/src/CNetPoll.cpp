@@ -287,7 +287,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 }
 #endif
 
-void CNetPoll::del_io_writing_evt(CIoJob *jobNode)
+void CNetPoll::pause_io_writing_evt(CIoJob *jobNode)
 {
 #ifndef _WIN32
 	char err_buf[64] = {0};
@@ -317,6 +317,128 @@ void CNetPoll::del_io_writing_evt(CIoJob *jobNode)
 		}
 	}
 #endif
+
+	jobNode->del_write_io_event();
+}
+
+void CNetPoll::pause_io_reading_evt(CIoJob *jobNode)
+{
+#ifndef _WIN32
+	char err_buf[64] = {0};
+	if (jobNode->io_event_write())
+	{
+		/*modify*/
+		struct epoll_event ev;
+
+		memset(&ev, 0, sizeof(ev));
+		ev.events = EPOLLOUT | EPOLLET;
+		ev.data.ptr = (void*)jobNode;
+		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
+		{
+			_LOG_ERROR("EPOLL_CTL_MOD failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+		}
+		else
+		{
+			_LOG_DEBUG("pause read event from io job, fd %d.", jobNode->get_fd());
+		}
+	}
+	else
+	{
+		/*del*/
+		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
+		{
+			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+		}
+	}
+#endif
+
+	jobNode->del_read_io_event();
+}
+
+BOOL CNetPoll::pause_io_reading_evt(int fd)
+{
+	CIoJob *job_node = NULL;
+
+	g_IoJobMgr->lock();
+	job_node = g_IoJobMgr->find_io_job(fd);
+	if (NULL == job_node)
+	{	
+		g_IoJobMgr->unlock();
+		_LOG_ERROR("io job fd %d not exist when pause read.", fd);
+		return false;
+	}
+
+	job_node->lock();
+	this->pause_io_reading_evt(job_node);
+	job_node->unlock();
+
+	g_IoJobMgr->unlock();
+
+	return true;
+}
+
+BOOL CNetPoll::resume_io_reading_evt(int fd)
+{
+	char err_buf[64] = {0};
+	CIoJob *job_node = NULL;
+
+	g_IoJobMgr->lock();
+	job_node = g_IoJobMgr->find_io_job(fd);
+	if (NULL == job_node)
+	{	
+		g_IoJobMgr->unlock();
+		_LOG_ERROR("io job fd %d not exist when resume read.", fd);
+		return false;
+	}
+
+	job_node->lock();
+
+	if (job_node->io_event_write())
+	{
+#ifndef _WIN32
+		struct epoll_event ev;
+		memset(&ev, 0, sizeof(ev));
+		ev.data.ptr = (void*)job_node;
+		ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
+		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
+		{
+			job_node->unlock();
+			g_IoJobMgr->unlock();
+			_LOG_ERROR("epoll_ctl mod to read failed, fd %d, epfd %d, errno %d, %s.",
+								fd,	m_epfd[job_node->get_thrd_index()],
+								errno, str_error_s(err_buf, sizeof(err_buf), errno));
+			return false;
+		}
+#endif
+		_LOG_INFO("modify job, resume read to write job, fd %d.", fd);
+	}
+	/*加个判断,避免重复add read job*/
+	else if (!job_node->io_event_read())
+	{
+#ifndef _WIN32
+		struct epoll_event ev;
+		memset(&ev, 0, sizeof(ev));
+		ev.data.ptr = (void*)job_node;
+		ev.events = EPOLLIN | EPOLLET;
+		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_ADD, fd, &ev) != 0)
+		{
+			job_node->unlock();
+			g_IoJobMgr->unlock();
+			_LOG_ERROR("epoll_ctl resume read failed, fd %d, %s.", fd,
+					 str_error_s(err_buf, sizeof(err_buf), errno));
+			return false;
+		}	
+#endif
+
+		_LOG_INFO("modify job, resume read event, fd %d.", fd);
+	}
+	
+	job_node->add_read_io_event();
+
+	job_node->unlock();	
+	g_IoJobMgr->unlock();
+
+	return true;
 }
 
 BOOL CNetPoll::add_listen_job(accept_hdl_func io_func, int  fd, void* param1)
@@ -755,6 +877,59 @@ BOOL CNetPoll::del_write_job(int fd, free_hdl_func free_func)
 	return true;
 }
 
+BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
+{
+	char err_buf[64] = {0};
+
+	CIoJob *job_node = NULL;
+
+	g_IoJobMgr->lock();
+
+	job_node = g_IoJobMgr->find_io_job(fd);
+	if (NULL == job_node)
+	{
+		/*对于write事件, 在处理时会自动停止,因此如果del_read_job会直接删除,
+		程序再调用此接口时job已经不存在,属于正常流程*/
+		//_LOG_DEBUG("write job fd %d not exist when del.", fd);
+		g_IoJobMgr->unlock();
+		return false;
+	}
+	job_node->set_free_callback((void*)free_func);
+
+	job_node->lock();
+	if (job_node->io_event_read() || job_node->io_event_write())
+	{
+		job_node->del_write_io_event();
+		job_node->del_read_io_event();
+#ifndef _WIN32
+		/*delete from epoll fd*/
+		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_DEL, fd, NULL) != 0)
+		{
+			_LOG_ERROR("EPOLL_CTL_DEL failed, epfd %d, %s.", 
+				m_epfd[job_node->get_thrd_index()],
+				str_error_s(err_buf, sizeof(err_buf), errno));
+		}
+
+#endif
+		_LOG_INFO("del job, fd %d", fd);
+
+		job_node->set_deleting_flag();
+		//g_IoJobMgr->del_io_job(job_node);
+		//g_IoJobMgr->move_to_deling_job(job_node);
+	}
+	else
+	{
+		job_node->set_deleting_flag();
+		//g_IoJobMgr->del_io_job(job_node);
+		//g_IoJobMgr->move_to_deling_job(job_node);
+
+		_LOG_INFO("del job, fd %d, no event on it.", fd);
+	}
+
+	job_node->unlock();
+	g_IoJobMgr->unlock();
+	return true;
+}
 
 BOOL CNetPoll::init_event_fds()
 {

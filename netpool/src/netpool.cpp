@@ -94,6 +94,21 @@ DLL_API BOOL np_del_read_job(int  fd, free_hdl_func free_func)
 	return g_NetPoll->del_read_job(fd, free_func);
 }
 
+DLL_API BOOL np_pause_read_on_job(int  fd)
+{
+	return g_NetPoll->pause_io_reading_evt(fd);
+}
+
+DLL_API BOOL np_resume_read_on_job(int  fd)
+{
+	return g_NetPoll->resume_io_reading_evt(fd);
+}
+
+DLL_API BOOL np_del_io_job(int fd, free_hdl_func free_func)
+{
+	return g_NetPoll->del_io_job(fd, free_func);
+}
+
 DLL_API BOOL np_add_write_job(write_hdl_func write_func,
 					int  fd, void* param1,
 					unsigned int thrd_index)

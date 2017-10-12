@@ -46,7 +46,13 @@ public:
 						unsigned int thrd_index,
 						BOOL isTcp);
 	BOOL del_write_job(int  fd, free_hdl_func free_func);
-	void del_io_writing_evt(CIoJob *jobNode);
+
+	void pause_io_writing_evt(CIoJob *jobNode);
+	void pause_io_reading_evt(CIoJob *jobNode);
+
+	BOOL pause_io_reading_evt(int fd);
+	BOOL resume_io_reading_evt(int fd);
+	BOOL del_io_job(int fd, free_hdl_func free_func);
 
 	BOOL init_event_fds();
 

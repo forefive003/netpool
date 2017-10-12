@@ -92,6 +92,7 @@ CNetRecv::~CNetRecv()
 void CNetRecv::init_common_data()
 {
     m_is_connected = false;
+    m_is_pause_read = false;
 
     m_ipaddr = 0;
     memset(m_ipstr, 0, sizeof(m_ipstr));
@@ -101,36 +102,18 @@ void CNetRecv::init_common_data()
     memset(m_local_ipstr, 0, sizeof(m_local_ipstr));
     m_local_port = 0;
 
+    m_send_q_busy_cnt = 8;
+
     m_thrd_index = 0;
+    m_is_async_write = true;
 
     m_is_register_write = false;
-    m_is_register_read = false;
-    m_is_register_connect = false;
-
-    m_new_mem_func = NULL;
-    m_free_mem_func = NULL;
-    m_is_async_write = false;
-#ifdef _WIN32
-	m_queue_lock = 0;
-#else
-    pthread_spin_init(&m_queue_lock, 0);
-#endif
-
-    m_is_write_failed = false;
-
-    MUTEX_SETUP(m_register_lock);
-    m_is_freed = false;
+    MUTEX_SETUP(m_free_lock);
 }
 
 void CNetRecv::destroy_common_data()
 {
-#ifdef _WIN32
-	m_queue_lock = 0;
-#else
-	pthread_spin_destroy(&m_queue_lock);
-#endif
-    
-    MUTEX_CLEANUP(m_register_lock);
+    MUTEX_CLEANUP(m_free_lock);
 }
 
 int CNetRecv::init_peer_ipinfo(uint32_t ipaddr, uint16_t port)
@@ -190,8 +173,25 @@ int CNetRecv::init_local_ipinfo()
 
 int CNetRecv::connect_handle(BOOL result)
 {
-    _LOG_ERROR("(%s/%u) fd %d default connect handle, shouldn't be here", m_ipstr, m_port, m_fd);
-    return -1;
+    return 0;
+}
+
+int CNetRecv::send_pre_handle()
+{
+    return 0;
+}
+
+int CNetRecv::send_post_handle()
+{
+    #if 0
+    MUTEX_LOCK(recvObj->m_free_lock);
+    if (m_is_pause_read)
+    {
+        this->resume_read();
+    }
+    MUTEX_UNLOCK(recvObj->m_free_lock);
+    #endif
+    return 0;
 }
 
 void CNetRecv::free_handle()
@@ -203,21 +203,61 @@ void CNetRecv::free_handle()
 void CNetRecv::_send_callback(int  fd, void* param1)
 {
     CNetRecv *recvObj = (CNetRecv*)param1;
+    int ret = 0;
 
     if (recvObj->m_fd != fd)
     {
+        recvObj->m_send_q.clean_q();
         _LOG_ERROR("(%s/%u) fd %d invalid fd when recv", recvObj->m_ipstr, recvObj->m_port, fd);
-        recvObj->free();
-        return;
+        goto exitAndTryfreeSelf;
     }
 
-    if (-1 == recvObj->send_handle())
+    if (-1 == recvObj->send_pre_handle())
     {
-        _LOG_ERROR("(%s/%u) fd %d send handle failed", recvObj->m_ipstr, recvObj->m_port, fd);
-        recvObj->free();
-        return;
+        recvObj->m_send_q.clean_q();
+        _LOG_ERROR("(%s/%u) fd %d pre-send handle failed", recvObj->m_ipstr, recvObj->m_port, fd);
+        goto exitAndTryfreeSelf;
     }
 
+    ret = recvObj->m_send_q.consume_q(recvObj->m_fd);
+    if (ret < 0)
+    {
+        /*send failed*/
+        recvObj->m_send_q.clean_q();
+        goto exitAndTryfreeSelf;
+    }
+
+    if (recvObj->m_send_q.node_cnt() < this->m_send_q_busy_cnt)
+    {
+        if (-1 == recvObj->send_post_handle())
+        {
+            recvObj->m_send_q.clean_q();
+            _LOG_ERROR("(%s/%u) fd %d post-send handle failed", recvObj->m_ipstr, recvObj->m_port, fd);
+            goto exitAndTryfreeSelf;
+        }
+    }
+
+    if(recvObj->m_send_q.node_cnt() > 0)
+    {
+        /*not send completed, wait next write evt*/
+        if(0 != recvObj->register_write())
+        {
+            recvObj->m_send_q.clean_q();
+            goto exitAndTryfreeSelf;
+        }
+        /*wait next event*/
+        return;
+    }
+    
+    /*send completed*/
+exitAndTryfreeSelf:
+    /*all data has send finished, free it*/
+    MUTEX_LOCK(recvObj->m_free_lock);
+    if (recvObj->m_is_freeing)
+    {
+        np_del_io_job(recvObj->m_fd, CNetRecv::_free_callback);
+    }
+    MUTEX_UNLOCK(recvObj->m_free_lock);
     return;
 }
 
@@ -264,7 +304,6 @@ void CNetRecv::_free_callback(int  fd, void* param1)
         recvObj->m_local_ipstr, recvObj->m_local_port,
         recvObj->m_fd);
 
-    recvObj->free_async_write_resource();
 #ifndef _WIN32
 	close(recvObj->m_fd);
 #else
@@ -333,7 +372,12 @@ void CNetRecv::_connect_callback(int  fd, void* param1)
     if (err == 0 && ret == 0)
     {
         _LOG_INFO("(%s/%u) fd %d connected.", recvObj->m_ipstr, recvObj->m_port, recvObj->m_fd);
-        recvObj->connect_handle(true);
+        if(0 != recvObj->connect_handle(true))
+        {
+            recvObj->free();
+            return;
+        }
+
         recvObj->m_is_connected = true;
     }
     else
@@ -347,16 +391,36 @@ void CNetRecv::_connect_callback(int  fd, void* param1)
             recvObj->m_ipstr, recvObj->m_port, recvObj->m_fd, str_error_s(err_buf, 32, err));
 #endif
         recvObj->connect_handle(false);
+        recvObj->free();
+        return;
     }
 
-    /*unregister connect event if no write event register*/
-    if (false == recvObj->m_is_register_write
-        && true == recvObj->m_is_register_connect)
-    {
-        recvObj->unregister_connect();
-    }
     return;
 }
+
+
+int CNetRecv::pause_read()
+{
+    if(false == np_pause_read_on_job(m_fd))
+    {
+        return -1;
+    }
+
+    m_is_pause_read = true;
+    return 0;
+}
+
+int CNetRecv::resume_read()
+{
+    if(false == np_resume_read_on_job(m_fd))
+    {
+        return -1;
+    }
+
+    m_is_pause_read = false;
+    return 0;
+}
+
 
 int CNetRecv::register_read()
 {
@@ -375,14 +439,7 @@ int CNetRecv::register_read()
         return -1;
     }
 
-    m_is_register_read = true;
     return 0;
-}
-
-void CNetRecv::unregister_read()
-{
-    np_del_read_job(m_fd, CNetRecv::_free_callback);
-    m_is_register_read = false;
 }
 
 int CNetRecv::register_connect()
@@ -432,7 +489,6 @@ int CNetRecv::register_connect()
     }
 #endif
 
-    m_is_register_connect = true;
     if(false == np_add_write_job(CNetRecv::_connect_callback, m_fd, (void*)this, m_thrd_index))
     {
         return -1;
@@ -441,16 +497,11 @@ int CNetRecv::register_connect()
     return 0;
 }
 
-void CNetRecv::unregister_connect()
-{
-    np_del_write_job(m_fd, CNetRecv::_free_callback);
-    m_is_register_connect = false;
-}
-
 int CNetRecv::register_write()
 {
     if(false == np_add_write_job(CNetRecv::_send_callback, m_fd, (void*)this, m_thrd_index))
     {
+        /*if failed, clear send q*/
         return -1;
     }
 
@@ -458,288 +509,15 @@ int CNetRecv::register_write()
     return 0;
 }
 
-void CNetRecv::unregister_write()
+void CNetRecv::set_async_write_flag(bool is_async)
 {
-    np_del_write_job(m_fd, CNetRecv::_free_callback);
-    m_is_register_write = false;
-}
-
-
-void CNetRecv::init_async_write_resource(void* (*new_mem_func)(),
-            void (*free_mem_func)(void*))
-{
-    m_is_write_failed = false;
-    m_is_async_write = true;
-    SQUEUE_INIT_HEAD(&m_data_queue);
-    m_cur_send_node = NULL;
-
-    m_new_mem_func = new_mem_func;
-    m_free_mem_func = free_mem_func;
-}
-
-void CNetRecv::free_async_write_resource()
-{
-#ifdef _WIN32
-	while (InterlockedExchange(&m_queue_lock, 1) == 1){
-		sleep_s(0);
-	}
-#else
-	pthread_spin_lock(&m_queue_lock);
-#endif
-
-    if (m_is_async_write)
-    {
-        /*有可能其他线程会写队列, 而本对象不会在出发write事件,因此不会取队列*/
-        m_is_async_write = false;
-
-        int spare_len = 0;
-        if (m_is_write_failed == false)
-        {
-            /*先保证正常情况下所有buf发送完*/
-            if (m_cur_send_node != NULL)
-            {
-                spare_len = m_cur_send_node->produce_pos - m_cur_send_node->consume_pos;
-                if ( spare_len != sock_write_timeout(m_fd, 
-                                        &m_cur_send_node->data[m_cur_send_node->consume_pos], 
-                                        spare_len, 
-                                        DEF_WR_TIMEOUT))
-                {
-                    char err_buf[64] = {0};
-#ifdef _WIN32
-                    _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
-                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
-                        WSAGetLastError());
-#else
-                    _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
-                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
-                        str_error_s(err_buf, 32, errno));
-#endif
-
-                    m_free_mem_func(m_cur_send_node);
-                    m_cur_send_node = NULL;
-                    goto free_nodes;
-                }
-                else
-                {
-                    m_free_mem_func(m_cur_send_node);
-                    m_cur_send_node = NULL;
-                }
-            }
-
-            buf_node_t* buf_node = NULL;
-            while((buf_node = (buf_node_t*)squeue_deq(&m_data_queue)) != NULL)
-            {
-                spare_len = buf_node->produce_pos - buf_node->consume_pos;
-                if ( spare_len != sock_write_timeout(m_fd, 
-                                        &buf_node->data[buf_node->consume_pos], 
-                                        spare_len, 
-                                        DEF_WR_TIMEOUT))
-                {
-                    char err_buf[64] = {0};
-#ifdef _WIN32
-                    _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
-                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
-                        WSAGetLastError());
-#else
-                    _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
-                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
-                        str_error_s(err_buf, 32, errno));
-#endif
-                    m_free_mem_func((void*)buf_node);
-                    goto free_nodes;
-                }
-                else
-                {
-                    m_free_mem_func((void*)buf_node);
-                }
-            }
-        }
-
-free_nodes:            
-        /*free all memory in queue*/
-        int count = 0;
-        struct list_head* queue_node = NULL;
-        while((queue_node = squeue_deq(&m_data_queue)) != NULL)
-        {
-            m_free_mem_func(queue_node);
-            count++;
-        }
-
-        if (m_cur_send_node != NULL)
-        {
-            m_free_mem_func(m_cur_send_node);
-            count++;
-        }    
-
-        if (count > 0)
-        {
-            _LOG_ERROR("(peer %s/%u, local %s/%u) fd %d has %d uncompleted write node for write failed.", 
-                m_ipstr, m_port, 
-                m_local_ipstr,  m_local_port, m_fd, count);
-        }
-    }
-
-#ifdef _WIN32
-	InterlockedExchange(&m_queue_lock, 0);
-#else
-	pthread_spin_unlock(&m_queue_lock);
-#endif
-}
-
-int CNetRecv::send_buf_node(buf_node_t *buf_node)
-{  
-    int spare_len = buf_node->produce_pos - buf_node->consume_pos;
-    int send_len = 0;
-    int total_send_len = 0;
-
-    while(spare_len > 0)
-    {
-        send_len = send(m_fd, &buf_node->data[buf_node->consume_pos], spare_len, 0);
-        if (send_len < 0)
-        {
-            if (errno == EWOULDBLOCK || errno == EAGAIN)
-            {
-                break;
-            }
-            else if (errno == EINTR)
-            { 
-                _LOG_WARN("EINTR occured, continue write");
-                continue;
-            }
-            else
-            {
-                char err_buf[64] = {0};
-#ifdef _WIN32
-                _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %d.", 
-                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
-                        WSAGetLastError());
-#else
-                _LOG_ERROR("(peer %s/%u local %s/%u) fd %d send failed, %s.", 
-                        m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd,
-                        str_error_s(err_buf, 32, errno));
-#endif
-
-                /*返回-1后直接free, 类似recv处理失败*/
-                return -1;
-            }
-        }
-        else
-        {
-            assert(spare_len >= send_len);
-            spare_len -= send_len;
-            buf_node->consume_pos += send_len;
-            total_send_len += send_len;
-        }
-    }
-
-    return total_send_len;
-}
-
-int CNetRecv::send_handle()
-{
-    int count = 0;
-    uint32_t bytes = 0;
-    int ret = 0;
-
-    if (m_cur_send_node == NULL)
-    {
-        /*没有节点, 取一个*/
-#ifdef _WIN32
-		while (InterlockedExchange(&m_queue_lock, 1) == 1){
-			sleep_s(0);
-		}
-#else
-        pthread_spin_lock(&m_queue_lock);
-#endif
-
-        m_cur_send_node = (buf_node_t*)squeue_deq(&m_data_queue);
-
-#ifdef _WIN32
-		InterlockedExchange(&m_queue_lock,0);
-#else
-        pthread_spin_unlock(&m_queue_lock);
-#endif
-    }
-
-    while(m_cur_send_node != NULL)
-    {
-        ret = send_buf_node(m_cur_send_node);
-        if (-1 == ret)
-        {
-            /*设置是否发送失败, 如失败, free callback中直接释放内存, 否则先保证所有内存发送完*/
-            m_is_write_failed = true;
-            return -1;
-        }
-
-        bytes += ret;
-        count++;
-
-        if (m_cur_send_node->consume_pos == m_cur_send_node->produce_pos)
-        {
-            /*此buffer节点已经写完, 释放*/
-            m_free_mem_func(m_cur_send_node);
-            m_cur_send_node = NULL;
-
-            /*再取一个节点*/
-#ifdef _WIN32
-			while (InterlockedExchange(&m_queue_lock, 1) == 1){
-				sleep_s(0);
-			}
-#else
-			pthread_spin_lock(&m_queue_lock);
-#endif
-            m_cur_send_node = (buf_node_t*)squeue_deq(&m_data_queue);
-
-#ifdef _WIN32
-			InterlockedExchange(&m_queue_lock, 0);
-#else
-			pthread_spin_unlock(&m_queue_lock);
-#endif
-        }
-        else
-        {
-            /*没发送完, 下个可写事件时再发*/
-            _LOG_DEBUG("(peer %s/%u, local %s/%u) fd %d not send finished, wait next.", 
-                    m_ipstr, m_port, 
-                    m_local_ipstr,  m_local_port, m_fd);
-            this->register_write();
-            break;
-        }
-    }
-
-    if (count > 0)
-    {
-        _LOG_DEBUG("(peer %s/%u, local %s/%u) fd %d async write %d node, bytes %u.", 
-            m_ipstr, m_port, 
-            m_local_ipstr,  m_local_port, m_fd, count, bytes);
-    }
-    else if (bytes > 0)
-    {
-        _LOG_DEBUG("(peer %s/%u, local %s/%u) fd %d async write %d node, bytes %u.", 
-            m_ipstr, m_port, 
-            m_local_ipstr,  m_local_port, m_fd, count, bytes);
-    }
-
-    return 0;
+    m_is_async_write = is_async;
 }
 
 int CNetRecv::send_data(char *buf, int buf_len)
 {
-#ifdef _WIN32
-	while (InterlockedExchange(&m_queue_lock, 1) == 1){
-		sleep_s(0);
-	}
-#else
-	pthread_spin_lock(&m_queue_lock);
-#endif
     if (m_is_async_write == false)
     {
-#ifdef _WIN32
-		InterlockedExchange(&m_queue_lock, 0);
-#else
-		pthread_spin_unlock(&m_queue_lock);
-#endif
-
         if ( buf_len != sock_write_timeout(m_fd, buf, buf_len, DEF_WR_TIMEOUT))
         {
             char err_buf[64] = {0};
@@ -757,87 +535,28 @@ int CNetRecv::send_data(char *buf, int buf_len)
         return 0;
     }
 
-    buf_node_t *buf_node = NULL;
-    buf_node = (buf_node_t*)squeue_get_tail(&m_data_queue);
-    if (NULL == buf_node)
+    if(0 != m_send_q.produce_q(buf, buf_len))
     {
-        /*分配一个节点*/
-        buf_node = (buf_node_t*)m_new_mem_func();
-        if (NULL == buf_node)
-        {
-#ifdef _WIN32
-			InterlockedExchange(&m_queue_lock, 0);
-#else
-			pthread_spin_unlock(&m_queue_lock);
-#endif
-            _LOG_ERROR("send to (%s/%u) failed, fd %d, no buffer.", m_ipstr, m_port, m_fd);
-            return -1;
-        }
-        SQUEUE_INIT_NODE(&buf_node->node);
-        buf_node->produce_pos = 0;
-        buf_node->consume_pos = 0;
-
-        /*插入到queue中*/
-        squeue_inq((struct list_head*)(buf_node), &m_data_queue);
-    }
-
-    /*数据写入*/
-    int32_t fill_len = 0;
-    while(fill_len < buf_len)
-    {
-        uint32_t buf_spare_len = BUF_NODE_SIZE - buf_node->produce_pos;
-        uint32_t send_spare_len = buf_len - fill_len;
-        if (send_spare_len > buf_spare_len)
-        {
-            memcpy(&buf_node->data[buf_node->produce_pos], &buf[fill_len], buf_spare_len);            
-            buf_node->produce_pos += buf_spare_len;
-            fill_len += buf_spare_len;
-
-            /*再分配一个节点*/
-            buf_node = (buf_node_t*)m_new_mem_func();
-            if (NULL == buf_node)
-            {
-#ifdef _WIN32
-				InterlockedExchange(&m_queue_lock, 0);
-#else
-				pthread_spin_unlock(&m_queue_lock);
-#endif
-                _LOG_ERROR("send to (%s/%u) failed, fd %d, no buffer.", m_ipstr, m_port, m_fd);
-                return -1;
-            }
-
-            SQUEUE_INIT_NODE(&buf_node->node);
-            buf_node->produce_pos = 0;
-            buf_node->consume_pos = 0;
-
-            /*插入到queue中*/
-            squeue_inq((struct list_head*)(buf_node), &m_data_queue);
-        }
-        else
-        {
-            memcpy(&buf_node->data[buf_node->produce_pos], &buf[fill_len], send_spare_len);
-            buf_node->produce_pos += send_spare_len;
-            break;
-        }
-    }
-
-#ifdef _WIN32
-	InterlockedExchange(&m_queue_lock, 0);
-#else
-	pthread_spin_unlock(&m_queue_lock);
-#endif
-
-    /*maybe other thread call free at the same time, cause m_fd register on write, and this obj
-        be deleted*/
-    int ret = 0;
-    MUTEX_LOCK(m_register_lock);
-    if(m_is_freed)
-    {
-        MUTEX_UNLOCK(m_register_lock);
+        _LOG_ERROR("(peer %s/%u local %s/%u) fd %d produce to queue failed.", 
+            m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd);
         return -1;
     }
+
+    int ret = 0;
+    MUTEX_LOCK(m_free_lock);
+    if (m_is_freeing)
+    {
+        MUTEX_UNLOCK(m_free_lock);
+        return -1;
+    }
+#if 0
+    if (m_send_q.node_cnt() >= m_send_q_busy_cnt)
+    {
+        this->pause_read();
+    }
+#endif
     ret = this->register_write();
-    MUTEX_UNLOCK(m_register_lock);
+    MUTEX_UNLOCK(m_free_lock);
 
     return ret;
 }
@@ -851,7 +570,7 @@ void CNetRecv::set_thrd_index(unsigned int thrd_index)
 BOOL CNetRecv::is_connected()
 {
     return m_is_connected;
-}
+}  
 
 int CNetRecv::init()
 {
@@ -866,22 +585,14 @@ int CNetRecv::init()
 
 void CNetRecv::free()
 {
-    MUTEX_LOCK(m_register_lock);
-    m_is_freed = true;
+    MUTEX_LOCK(m_free_lock);
+    m_is_freeing = true;
 
-    if (m_is_register_read)
+    /*if has data not send completed, wait*/
+    if (m_send_q.node_cnt() == 0)
     {
-        unregister_read();
+        np_del_io_job(this->m_fd, CNetRecv::_free_callback);
     }
 
-    if (m_is_register_write)
-    {
-        unregister_write();
-    }
-    else if (m_is_register_connect)
-    {
-        unregister_connect();
-    }
-
-    MUTEX_UNLOCK(m_register_lock);
+    MUTEX_UNLOCK(m_free_lock);
 }
