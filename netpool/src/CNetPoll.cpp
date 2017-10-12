@@ -289,6 +289,10 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 
 void CNetPoll::pause_io_writing_evt(CIoJob *jobNode)
 {
+	if (jobNode->io_event_write() == false)
+	{
+		return;
+	}
 #ifndef _WIN32
 	char err_buf[64] = {0};
 	if (jobNode->io_event_read())
@@ -323,6 +327,10 @@ void CNetPoll::pause_io_writing_evt(CIoJob *jobNode)
 
 void CNetPoll::pause_io_reading_evt(CIoJob *jobNode)
 {
+	if (jobNode->io_event_read() == false)
+	{
+		return;
+	}
 #ifndef _WIN32
 	char err_buf[64] = {0};
 	if (jobNode->io_event_write())
@@ -348,6 +356,10 @@ void CNetPoll::pause_io_reading_evt(CIoJob *jobNode)
 		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+		}
+		else
+		{
+			_LOG_DEBUG("pause read event from io job, fd %d, no event now.", jobNode->get_fd());
 		}
 	}
 #endif
@@ -431,6 +443,10 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 #endif
 
 		_LOG_INFO("modify job, resume read event, fd %d.", fd);
+	}
+	else
+	{
+		_LOG_WARN("already has read when resume read event, fd %d.", fd);
 	}
 	
 	job_node->add_read_io_event();
@@ -911,7 +927,7 @@ BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 		}
 
 #endif
-		_LOG_INFO("del job, fd %d", fd);
+		_LOG_INFO("del io job, fd %d", fd);
 
 		job_node->set_deleting_flag();
 		//g_IoJobMgr->del_io_job(job_node);
@@ -923,7 +939,7 @@ BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 		//g_IoJobMgr->del_io_job(job_node);
 		//g_IoJobMgr->move_to_deling_job(job_node);
 
-		_LOG_INFO("del job, fd %d, no event on it.", fd);
+		_LOG_INFO("del io job, fd %d, no event on it.", fd);
 	}
 
 	job_node->unlock();

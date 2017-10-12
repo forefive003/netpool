@@ -205,11 +205,6 @@ void CSocksSendQ::clean_q()
         count++;
     }    
     this->unlock();
-
-    if (count > 0)
-    {
-        _LOG_ERROR("%d uncompleted write node for write failed.", count);
-    }
 }
 
 void CSocksSendQ::queue_cat(CSocksSendQ &qobj)
@@ -225,7 +220,7 @@ void CSocksSendQ::queue_cat(CSocksSendQ &qobj)
         this->unlock();
     }
 
-    qobj.lock();
+    qobj.unlock();
 }
 
 unsigned int CSocksSendQ::node_cnt()

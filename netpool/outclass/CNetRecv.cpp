@@ -107,6 +107,7 @@ void CNetRecv::init_common_data()
 
     m_thrd_index = 0;
     m_is_async_write = true;
+    m_is_freeing = false;
 
     m_is_register_write = false;
     MUTEX_SETUP(m_free_lock);
@@ -114,6 +115,12 @@ void CNetRecv::init_common_data()
 
 void CNetRecv::destroy_common_data()
 {
+    if (m_send_q.node_cnt() > 0)
+    {
+        _LOG_WARN("(%s/%u) fd %d has %d uncompleted write node when destruct", m_ipstr, m_port, m_fd,
+            m_send_q.node_cnt());
+        m_send_q.clean_q();
+    }
     MUTEX_CLEANUP(m_free_lock);
 }
 
@@ -259,6 +266,7 @@ exitAndTryfreeSelf:
     if (recvObj->m_is_freeing)
     {
         np_del_io_job(recvObj->m_fd, CNetRecv::_free_callback);
+        _LOG_INFO("del job after send end");
     }
     MUTEX_UNLOCK(recvObj->m_free_lock);
     return;
@@ -550,6 +558,8 @@ int CNetRecv::send_data(char *buf, int buf_len)
     if (m_is_freeing)
     {
         MUTEX_UNLOCK(m_free_lock);
+        _LOG_WARN("(peer %s/%u local %s/%u) fd %d produce to queue failed, is in freeing.", 
+            m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd);
         return -1;
     }
 
