@@ -85,3 +85,8 @@ unsigned int socks_mem_get_used_cnt()
 {
 	return mpoll_get_used_cnt(&g_socks_mem_pool);
 }
+
+unsigned int socks_mem_get_free_cnt()
+{
+	return mpoll_get_free_cnt(&g_socks_mem_pool);
+}

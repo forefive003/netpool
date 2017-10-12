@@ -106,3 +106,9 @@ DLL_API unsigned int mpoll_get_used_cnt(MEM_POOL_T *pool)
 {
 	return pool->m_node_cnt - pool->m_stack_idx;
 }
+
+
+DLL_API unsigned int mpoll_get_free_cnt(MEM_POOL_T *pool)
+{
+	return pool->m_stack_idx;
+}
