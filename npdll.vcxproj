@@ -152,9 +152,11 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="netpool\include\CNetAccept.h" />
+    <ClInclude Include="netpool\include\CNetRecv.h" />
+    <ClInclude Include="netpool\include\CSocksMem.h" />
+    <ClInclude Include="netpool\include\CSocksSendQ.h" />
     <ClInclude Include="netpool\include\netpool.h" />
-    <ClInclude Include="netpool\outclass\CNetAccept.h" />
-    <ClInclude Include="netpool\outclass\CNetRecv.h" />
     <ClInclude Include="netpool\src\CJobIo.h" />
     <ClInclude Include="netpool\src\CJobIoMgr.h" />
     <ClInclude Include="netpool\src\CJobTime.h" />
@@ -198,6 +200,12 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="netpool\outclass\CNetRecv.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="netpool\outclass\CSocksMem.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="netpool\outclass\CSocksSendQ.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="netpool\src\CJobIo.cpp">

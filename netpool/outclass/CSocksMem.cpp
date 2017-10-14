@@ -1,3 +1,13 @@
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdarg.h>
+
+#ifdef _WIN32
+#include <Ws2tcpip.h>
+#include <windows.h>
+#include <process.h>
+#endif
+
 #include "commtype.h"
 #include "logproc.h"
 #include "mempool.h"
@@ -12,7 +22,7 @@ static pthread_spinlock_t g_socks_mem_lock;
 
 static MEM_POOL_T g_socks_mem_pool;
 
-void* socks_malloc()
+DLL_API void* socks_malloc()
 {
 	void *ptr = NULL;
 
@@ -34,7 +44,7 @@ void* socks_malloc()
 	return ptr;
 }
 
-void socks_free(void* ptr)
+DLL_API void socks_free(void* ptr)
 {
 #ifdef _WIN32
 	while (InterlockedExchange(&g_socks_mem_lock, 1) == 1){
@@ -53,7 +63,7 @@ void socks_free(void* ptr)
 #endif
 }
 
-int socks_mem_init(uint32_t node_cnt)
+DLL_API int socks_mem_init(uint32_t node_cnt)
 {
 #ifdef _WIN32
 	g_socks_mem_lock = 0;
@@ -70,7 +80,7 @@ int socks_mem_init(uint32_t node_cnt)
 	return 0;
 }
 
-void socks_mem_destroy()
+DLL_API void socks_mem_destroy()
 {
 	mpool_destroy(&g_socks_mem_pool);
 
@@ -81,12 +91,12 @@ void socks_mem_destroy()
 #endif
 }
 
-unsigned int socks_mem_get_used_cnt()
+DLL_API unsigned int socks_mem_get_used_cnt()
 {
 	return mpoll_get_used_cnt(&g_socks_mem_pool);
 }
 
-unsigned int socks_mem_get_free_cnt()
+DLL_API unsigned int socks_mem_get_free_cnt()
 {
 	return mpoll_get_free_cnt(&g_socks_mem_pool);
 }

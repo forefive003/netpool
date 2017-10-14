@@ -264,7 +264,7 @@ DLL_API int sock_write_timeout(int fd, char *buf, int len, int second)
 {
     int n = 0;
     int send_len = len;
-    char err_buf[64] = {0};
+    //char err_buf[64] = {0};
 
     int errno_ll = 0;
 

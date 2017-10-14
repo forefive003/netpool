@@ -152,7 +152,7 @@ void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset)
 
         if (pIoJob->get_deleting_flag())
         {
-            //已经设置为删�?不再处理
+            //if deleting, not handle it
             continue;
         }
 
