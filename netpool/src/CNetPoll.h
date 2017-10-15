@@ -20,14 +20,30 @@ public:
         return netPoll;
     }
 public:
-	void set_debug_func(thrd_init_func init_func,
-						thrd_beat_func beat_func,
-						thrd_exit_func exit_func);
+	BOOL _add_listen_job_entity(accept_hdl_func acpt_func,
+								int fd, void* param1);
+	BOOL _del_listen_job_entity(int fd, free_hdl_func free_func);
 
-	BOOL start();
-	void let_stop();
-	void wait_stop();
+	BOOL _add_read_job_entity(read_hdl_func read_func,
+					int fd, 
+					void* param1,
+					unsigned int thrd_index,
+					int bufferSize,
+					BOOL isTcp);
+	BOOL _del_read_job_entity(int  fd, free_hdl_func free_func);
 
+	BOOL _add_write_job_entity(write_hdl_func io_func,
+						int  fd, 
+						void* param1, 
+						unsigned int thrd_index,
+						BOOL isTcp);
+	BOOL _del_write_job_entity(int  fd, free_hdl_func free_func);
+
+	BOOL _pause_io_reading_evt_entity(int fd);
+	BOOL _resume_io_reading_evt_entity(int fd);
+	BOOL _del_io_job_entity(int fd, free_hdl_func free_func);
+
+public:	
 	BOOL add_listen_job(accept_hdl_func acpt_func,
 								int fd, void* param1);
 	BOOL del_listen_job(int fd, free_hdl_func free_func);
@@ -47,15 +63,23 @@ public:
 						BOOL isTcp);
 	BOOL del_write_job(int  fd, free_hdl_func free_func);
 
-	void pause_io_writing_evt(CIoJob *jobNode);
-	void pause_io_reading_evt(CIoJob *jobNode);
-
 	BOOL pause_io_reading_evt(int fd);
 	BOOL resume_io_reading_evt(int fd);
 	BOOL del_io_job(int fd, free_hdl_func free_func);
 
-	BOOL init_event_fds();
+public:
+	void set_debug_func(thrd_init_func init_func,
+						thrd_beat_func beat_func,
+						thrd_exit_func exit_func);
 
+	BOOL start();
+	void let_stop();
+	void wait_stop();
+
+	BOOL init_event_fds();
+	
+	void pause_io_writing_evt(CIoJob *jobNode);
+	void pause_io_reading_evt(CIoJob *jobNode);
 private:
 	static void loop_handle(void *arg, void *param2, void *param3, void *param4);
 	unsigned int get_next_thrd_index();
@@ -64,10 +88,12 @@ private:
 	unsigned int m_cur_thrd_index;
 
 #ifndef _WIN32
-	MUTEX_TYPE m_ep_lock;
-	int  m_epfd[32];
+	int  *m_epfd;
 #endif
-	uint32_t m_cur_worker_thrds;
+
+	CThrdComServ *m_thrdMsgServ_array;
+
+	uint32_t m_cur_worker_thrds; /*cur worker thread count, used when stop*/
 	MUTEX_TYPE m_lock;
 
 	volatile int m_isShutDown;

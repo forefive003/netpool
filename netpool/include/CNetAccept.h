@@ -20,6 +20,7 @@ class CNetAccept
 {
 public:
     CNetAccept(uint16_t port);
+    CNetAccept(const char *local_ipstr, uint16_t port);
     virtual ~CNetAccept();
 
 public:
@@ -39,6 +40,7 @@ private:
 public:   
     int m_listen_fd;
     uint16_t m_listen_port;
+    char m_local_ipstr[IP_DESC_LEN + 1];
 };
 
 

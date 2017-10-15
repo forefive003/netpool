@@ -5,13 +5,13 @@ CPPFLAGS  =   -ggdb -DCORE_DUMP  -pthread -Wall
 CPPFLAGS += -fno-strict-aliasing
 
 
-CPPFLAGS += -I./ -I./src/ -I./include -I./outclass/
+CPPFLAGS += -I./ -I./src/ -I./include -I./src/outclass/ -I./src/threadcomm/
 CPPFLAGS += -I../xutil/include
 
 CPPFLAGS += -rdynamic -fPIC
 LDFLAGS += -lpthread 
 
-SOURCES = $(wildcard ./src/*.cpp ./outclass/*.cpp)
+SOURCES = $(wildcard ./src/*.cpp ./src/outclass/*.cpp ./src/threadcomm/*.cpp)
 OBJECTS = $(patsubst %.cpp,%.o,$(SOURCES))
 DEPENDS = $(patsubst %.cpp,%.d,$(SOURCES))
 ASMFILE = $(patsubst %.cpp,%.s,$(SOURCES))

@@ -90,7 +90,7 @@ void CIoJobMgr::unlock()
 }
 
 
-int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset)
+int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index)
 {
     IOJOB_LIST_Itr itr;
     CIoJob *pIoJob = NULL;
@@ -135,7 +135,7 @@ int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset)
     return maxFd;
 }
 
-void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset)
+void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index)
 {
     IOJOB_LIST_Itr itr;
     CIoJob *pIoJob = NULL;

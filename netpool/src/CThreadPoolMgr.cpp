@@ -23,11 +23,15 @@ CThreadPoolMgr::CThreadPoolMgr(void)
 {
 	m_worker_thrd_pool = NULL;
 	m_worker_thrd_cnt = 0;
+	m_tid_array = NULL;
 }
 
 CThreadPoolMgr::~CThreadPoolMgr(void)
 {
-
+	if(NULL != m_tid_array)
+	{
+		free(m_tid_array);
+	}
 }
 
 BOOL CThreadPoolMgr::init_worker_thrds(unsigned int max_thrd_cnt,
@@ -55,6 +59,9 @@ BOOL CThreadPoolMgr::init_worker_thrds(unsigned int max_thrd_cnt,
 	}
 
 	m_worker_thrd_cnt = max_thrd_cnt;
+
+	m_tid_array = (UTIL_TID*)malloc(sizeof(UTIL_TID) * max_thrd_cnt);
+	memset(m_tid_array, 0, sizeof(UTIL_TID) * max_thrd_cnt);
 	return true;
 }
 

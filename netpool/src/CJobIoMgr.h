@@ -5,6 +5,8 @@
 typedef std::list<CIoJob*> IOJOB_LIST;
 typedef IOJOB_LIST::iterator IOJOB_LIST_Itr;
 
+#define  MAX_CONNECTION 65536
+
 class CIoJobMgr
 {
 public:
@@ -32,12 +34,18 @@ public:
 	void lock();
 	void unlock();
 
-	int walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset);
-	void walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset);
+	int walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index);
+	void walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index);
 	void handle_deling_job(unsigned int thrd_index);
+
 private:
-	MUTEX_TYPE m_job_lock;
-	IOJOB_LIST m_io_jobs;
+	IOJOB_LIST *m_io_jobs;
+
+	#ifdef WIN32
+	int m_job_thrd_fd_cnt;
+	int (*m_job_thrd_fd_array)[MAX_CONNECTION];
+	#endif
+
 	#if 0
 	IOJOB_LIST m_del_io_jobs;
 	#endif

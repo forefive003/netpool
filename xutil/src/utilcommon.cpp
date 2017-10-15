@@ -11,6 +11,15 @@
 #include "commtype.h"
 #include "utilcommon.h"
 
+DLL_API UTIL_TID util_get_cur_tid()
+{
+#ifdef WIN32
+     return (UTIL_TID)::GetCurrentThreadId();
+#else
+     return (UTIL_TID)thread_self();
+#endif
+}
+
 DLL_API int util_get_cpu_core_num()
 {
 #ifdef _WIN32
