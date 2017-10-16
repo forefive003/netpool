@@ -18,12 +18,23 @@ public:
 	virtual int init(const char *local_ipstr, uint16_t port);
 	int send_comm_msg(int type, char *buffer, int buffer_len);
 
+	void set_thrd_tid(UTIL_TID tid)
+	{
+		m_thrd_tid = tid;
+		_LOG_INFO("set thread id %lu for  thread comm server on thread %d", tid, m_thrd_index);
+	}
+	UTIL_TID get_thrd_tid()
+	{
+		return m_thrd_tid;
+	}
+
 private:
 	int accept_handle(int conn_fd, uint32_t client_ip, uint16_t client_port);
 
-public:
+private:
 	int m_thrd_index;
 	unsigned short m_thrd_dst_port;
+	unsigned long m_thrd_tid;
 }
 
 #endif

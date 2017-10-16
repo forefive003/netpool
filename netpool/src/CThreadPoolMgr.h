@@ -23,16 +23,6 @@ public:
     }
 
 public:
-	void set_thrd_tid(int thrd_index, UTIL_TID tid)
-	{
-		m_tid_array[thrd_index] = tid;
-		_LOG_INFO("set thread id %lu for index %d", tid, thrd_index);
-	}
-	UTIL_TID get_thrd_tid(int thrd_index)
-	{
-		return m_tid_array[thrd_index];
-	}
-
     BOOL init_worker_thrds(unsigned int max_thrd_cnt,
 			unsigned int start_core, unsigned int core_cnt);
     void set_worker_thrds_func(thrd_init_func init_func,

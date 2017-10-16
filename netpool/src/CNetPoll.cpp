@@ -42,6 +42,12 @@ CNetPoll::CNetPoll() {
 	m_epfd = NULL;
 	
 	m_thrdMsgServ_array = NULL;
+
+#ifdef _WIN32
+    m_index_lock = 0;
+#else
+    pthread_spin_init(&m_index_lock, 0);
+#endif
 }
 
 CNetPoll::~CNetPoll() {
@@ -81,6 +87,13 @@ CNetPoll::~CNetPoll() {
 
 		delete []m_thrdMsgServ_array;
 	}
+
+#ifdef _WIN32
+    m_index_lock = 0;
+#else
+    pthread_spin_destroy(&m_index_lock);
+#endif
+
 }
 
 void CNetPoll::set_debug_func(thrd_init_func init_func,
@@ -97,9 +110,6 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 {
 	CNetPoll *pollObj = (CNetPoll*)arg;
 	int evt_fd_index = (int)(long)param2;
-
-	UTIL_TID tid = util_get_cur_tid();
-	g_ThreadPoolMgr->set_thrd_tid(evt_fd_index, tid);
 
 #define EVENTMAX 1024
 	struct epoll_event events[EVENTMAX];
@@ -127,6 +137,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	{
 		pthread_exit((void*)-1);
 	}
+	m_thrdMsgServ_array[evt_fd_index].set_thrd_tid(util_get_cur_tid());
 
 	if (pollObj->m_init_func != NULL)
 	{
@@ -246,15 +257,13 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	int fd_num = 0;
 	int i = 0;
 
-	UTIL_TID tid = util_get_cur_tid();
-	g_ThreadPoolMgr->set_thrd_tid(evt_fd_index, tid);
-
-	m_thrdMsgServ_array[evt_fd_index] = new CThrdComServ("127.0.0.0", 0);
+	m_thrdMsgServ_array[evt_fd_index] = new CThrdComServ(THRD_COMM_ADDR_STR, 0);
 	if(0 != m_thrdMsgServ_array[evt_fd_index].init())
 	{
 		pthread_exit((void*)-1);
 	}
-	
+	m_thrdMsgServ_array[evt_fd_index].set_thrd_tid(util_get_cur_tid());
+
 	if (pollObj->m_init_func != NULL)
 	{
 		pollObj->m_init_func();
@@ -617,10 +626,6 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		job_node->set_read_callback((void*)io_func);
 		job_node->add_read_io_event();
 		job_node->init_recv_buf(bufferSize);
-		if (thrd_index >= g_ThreadPoolMgr->m_worker_thrd_cnt)
-		{
-			thrd_index = get_next_thrd_index();
-		}
 		job_node->set_thrd_index(thrd_index);
 #ifndef _WIN32
 		struct epoll_event ev;
@@ -781,10 +786,6 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		job_node->lock();
 		job_node->set_write_callback((void*)io_func);
 		job_node->add_write_io_event();
-		if (thrd_index >= g_ThreadPoolMgr->m_worker_thrd_cnt)
-		{
-			thrd_index = get_next_thrd_index();
-		}
 		job_node->set_thrd_index(thrd_index);
 
 #ifndef _WIN32
@@ -1008,11 +1009,23 @@ BOOL CNetPoll::init_event_fds()
 
 unsigned int CNetPoll::get_next_thrd_index()
 {
+#ifdef _WIN32
+    while (InterlockedExchange(&m_queue_lock, 1) == 1){
+        sleep_s(0);
+    }
+#else
+    pthread_spin_lock(&m_queue_lock);
+#endif
 	m_cur_thrd_index++;
 	if (m_cur_thrd_index >= g_ThreadPoolMgr->m_worker_thrd_cnt)
 	{
 		m_cur_thrd_index = 0;
 	}
+#ifdef _WIN32
+    InterlockedExchange(&m_queue_lock, 0);
+#else
+    pthread_spin_unlock(&m_queue_lock);
+#endif
 	return m_cur_thrd_index;
 }
 
