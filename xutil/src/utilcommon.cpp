@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <pthread.h>
 #endif
 
 #include "commtype.h"
@@ -16,7 +17,7 @@ DLL_API UTIL_TID util_get_cur_tid()
 #ifdef WIN32
      return (UTIL_TID)::GetCurrentThreadId();
 #else
-     return (UTIL_TID)thread_self();
+     return (UTIL_TID)pthread_self();
 #endif
 }
 

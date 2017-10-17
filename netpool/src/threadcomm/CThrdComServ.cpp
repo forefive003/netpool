@@ -19,9 +19,9 @@
 #include "CThread.h"
 #include "CThreadPool.h"
 #include "CJobIo.h"
+#include "CThrdComServ.h"
 #include "CNetPoll.h"
 #include "thrdComm.h"
-#include "CThrdComServ.h"
 #include "CThrdComObj.h"
 
 int CThrdComServ::accept_handle(int conn_fd, uint32_t client_ip, uint16_t client_port)
@@ -62,7 +62,7 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
     int errno_ll = 0;
     int ret = 0;
     /*send message*/
-    ret = send(s, (char*)&m_thrd_index, sizeof(m_thrd_index));
+    ret = send(s, (char*)&m_thrd_index, sizeof(m_thrd_index), 0);
     if (sizeof(m_thrd_index) != ret)
     {
         close(s);
@@ -76,7 +76,7 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
         return -1;
     }
 
-    ret = send(s, (char*)&type, sizeof(type));
+    ret = send(s, (char*)&type, sizeof(type), 0);
     if (sizeof(type) != ret)
     {
         close(s);
@@ -90,7 +90,7 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
         return -1;
     }
 
-    ret = send(s, (char*)buffer, buffer_len);
+    ret = send(s, (char*)buffer, buffer_len, 0);
     if (buffer_len != ret)
     {
         close(s);
@@ -108,26 +108,25 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
     return 0;
 }
 
-int CThrdComServ::init(const char *local_ipstr, uint16_t port)
+int CThrdComServ::init()
 {
-    m_listen_port = port;
-    memset(m_local_ipstr, 0, sizeof(m_local_ipstr));
-    strncpy(m_local_ipstr, local_ipstr, IP_DESC_LEN);
-    
     if(0 != register_accept())
     {
         return -1;
     }
 
-    int namelen = sizeof(sockaddr_in);
-    if (getsockname(m_fd, (sockaddr*)&m_thrd_message_addr, &namelen) == -1)
+    struct sockaddr_in thrd_addr;
+    socklen_t namelen = sizeof(sockaddr_in);
+    memset(&thrd_addr, 0, sizeof(thrd_addr));
+
+    if (getsockname(m_listen_fd, (sockaddr*)&thrd_addr, &namelen) == -1)
     {  
         unregister_accept();
         _LOG_ERROR("get thread message port failed, thrd index %d.", m_thrd_index);
         return -1;
     }
 
-    m_thrd_dst_port = m_thrd_message_addr.sin_port;
+    m_thrd_dst_port = thrd_addr.sin_port;
     _LOG_INFO("thread %d comm server listen on port %u", m_thrd_index, m_thrd_dst_port);
     return 0;
 }

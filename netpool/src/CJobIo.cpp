@@ -17,6 +17,8 @@
 
 #include "netpool.h"
 #include "CJobIo.h"
+#include "CThrdComServ.h"
+#include "CJobIoMgr.h"
 #include "CNetPoll.h"
 
 void CListenJob::set_read_callback(void *callback)
@@ -81,7 +83,6 @@ void CWrIoJob::set_write_callback(void *callback)
 	m_write_func = (write_hdl_func)callback;
 }
 
-
 void CWrIoJob::write_evt_handle()
 {
 	_LOG_DEBUG("fd %d write event coming", m_fd);
@@ -91,10 +92,9 @@ void CWrIoJob::write_evt_handle()
 		return;
 	}
 
-	this->lock();
-	g_NetPoll->pause_io_writing_evt(this);
-	this->unlock();
-	
+	/*not register write evt, avoid loop*/
+	g_NetPoll->pause_io_writing_evt(g_IoJobMgr->get_fd_thrd_index(m_fd), this);
+	/*call back*/
 	m_write_func(m_fd, m_param1);
 }
 

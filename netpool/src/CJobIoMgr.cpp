@@ -19,108 +19,136 @@
 #include "netpool.h"
 #include "CJobIo.h"
 #include "CJobIoMgr.h"
+#include "CThreadPoolMgr.h"
 
 CIoJobMgr *g_IoJobMgr = NULL;
 
 CIoJobMgr::CIoJobMgr() 
 {
-#ifndef _WIN32
-    pthread_mutexattr_t mux_attr;
-    memset(&mux_attr, 0, sizeof(mux_attr));
-    pthread_mutexattr_settype(&mux_attr, PTHREAD_MUTEX_RECURSIVE);
-    MUTEX_SETUP_ATTR(m_job_lock, &mux_attr);
-#else
-    MUTEX_SETUP_ATTR(m_job_lock, NULL);
-#endif
+    for(unsigned int ii = 0; ii < MAX_FD_CNT; ii++)
+    {
+        m_fd_array[ii].fd = -1;
+        m_fd_array[ii].thrd_index = -1;
+        m_fd_array[ii].ioJob = NULL;
+    #ifdef _WIN32
+        m_fd_array[ii].data_lock = 0;
+    #else
+        pthread_spin_init(&m_fd_array[ii].data_lock, 0);
+    #endif
+    }
 }
 
 CIoJobMgr::~CIoJobMgr()
 {
-    MUTEX_CLEANUP(m_job_lock);
-};
-
-CIoJob* CIoJobMgr::find_io_job(int fd)
-{
-    IOJOB_LIST_Itr itr;
-    CIoJob *pIoJob = NULL;
-
-    for (itr = m_io_jobs.begin();
-            itr != m_io_jobs.end();
-            itr++)
+    for(unsigned int ii = 0; ii < MAX_FD_CNT; ii++)
     {
-        pIoJob = *itr;
-        if (pIoJob->get_fd() == fd)
+        if (m_fd_array[ii].fd != -1)
         {
-            if (pIoJob->get_deleting_flag())
-            {
-                return NULL;
-            }
-
-            return pIoJob;
+            _LOG_ERROR("fd %d not delete when destruct ioJobMgr", m_fd_array[ii].fd);
         }
-    }
-
-    return NULL;
-}
-
-void CIoJobMgr::add_io_job(CIoJob* ioJob)
-{
-	MUTEX_LOCK(m_job_lock);
-    m_io_jobs.push_back(ioJob);
-    MUTEX_UNLOCK(m_job_lock);
-}
-
-#if 0
-void CIoJobMgr::del_io_job(CIoJob* ioJob)
-{
-	MUTEX_LOCK(m_job_lock);
-    m_io_jobs.remove(ioJob);
-    MUTEX_UNLOCK(m_job_lock);
-}
+#ifdef _WIN32
+        m_fd_array[ii].data_lock = 0;
+#else
+        pthread_spin_destroy(&m_fd_array[ii].data_lock);
 #endif
+    }    
 
-void CIoJobMgr::lock()
+    if (m_thrd_fds != NULL)
+    {
+        free(m_thrd_fds);
+        m_thrd_fds = NULL;
+    }
+};
+void CIoJobMgr::lock_fd(int fd)
 {
-	MUTEX_LOCK(m_job_lock);
+#ifdef _WIN32
+    while (InterlockedExchange(&m_fd_array[fd].data_lock, 1) == 1){
+        sleep_s(0);
+    }
+#else
+    pthread_spin_lock(&m_fd_array[fd].data_lock);
+#endif
 }
 
-void CIoJobMgr::unlock()
+void CIoJobMgr::unlock_fd(int fd)
 {
-	MUTEX_UNLOCK(m_job_lock);
+#ifdef _WIN32
+    InterlockedExchange(&m_fd_array[fd].data_lock, 0);
+#else
+    pthread_spin_unlock(&m_fd_array[fd].data_lock);
+#endif
 }
 
+int CIoJobMgr::get_fd_thrd_index(int fd)
+{
+    return m_fd_array[fd].thrd_index;
+}
+
+CIoJob* CIoJobMgr::get_fd_io_job(int thrd_index, int fd)
+{
+    if (m_fd_array[fd].thrd_index != thrd_index)
+    {
+        _LOG_ERROR("fd %d's ioJob not in thrd %d, but %d", fd, thrd_index, m_fd_array[fd].thrd_index);
+        return NULL;
+    }
+    return m_fd_array[fd].ioJob;
+}
+
+void CIoJobMgr::add_io_job(int fd, int thrd_index, CIoJob* ioJob)
+{
+    if ((m_fd_array[fd].ioJob != NULL) || (m_fd_array[fd].fd != -1) )
+    {
+        _LOG_ERROR("fd %d already has one ioJob, old fd %d", fd, m_fd_array[fd].fd);
+        return;
+    }
+    m_fd_array[fd].fd = fd;
+    m_fd_array[fd].ioJob = ioJob;
+    m_fd_array[fd].thrd_index = thrd_index;
+
+    m_thrd_fds[thrd_index].push_back(fd);
+    return;
+}
 
 int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index)
 {
-    IOJOB_LIST_Itr itr;
+    IOFD_LIST_Itr itr;
+    int io_fd = 0;
     CIoJob *pIoJob = NULL;
     int maxFd = 0;
 
-    MUTEX_LOCK(m_job_lock);
-
-    for (itr = m_io_jobs.begin();
-            itr != m_io_jobs.end(); )
+    for (itr = m_thrd_fds[thrd_index].begin();
+            itr != m_thrd_fds[thrd_index].end(); )
     {
-        pIoJob = *itr;
-
+        io_fd = *itr;
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
-        
-        int fd = pIoJob->get_fd();
-        if (fd > maxFd)
+
+        if (m_fd_array[io_fd].thrd_index != thrd_index)
         {
-            maxFd = fd;
+            _LOG_ERROR("fd %d not in thrd %d when set fdsets, but %d", io_fd, thrd_index, m_fd_array[io_fd].thrd_index);
+        }
+
+        pIoJob = m_fd_array[io_fd].ioJob;
+        if (NULL == pIoJob)
+        {
+            _LOG_ERROR("fd %d has no job when set fdsets", io_fd);
+            continue;
+        }
+        
+        if (io_fd > maxFd)
+        {
+            maxFd = io_fd;
         }
 
         if (pIoJob->io_event_read())
         {
-            FD_SET(fd, rset);
-            FD_SET(fd, eset);
+            FD_SET(io_fd, rset);
+            FD_SET(io_fd, eset);
         }
         if (pIoJob->io_event_write())
         {
-            FD_SET(fd, wset);
-            FD_SET(fd, eset);
+            FD_SET(io_fd, wset);
+            FD_SET(io_fd, eset);
         }
 #if 0
         else
@@ -130,25 +158,33 @@ int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int th
 #endif
     }
 
-    MUTEX_UNLOCK(m_job_lock);
-
     return maxFd;
 }
 
 void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index)
 {
-    IOJOB_LIST_Itr itr;
+    IOFD_LIST_Itr itr;
+    int io_fd = 0;
     CIoJob *pIoJob = NULL;
 
-    MUTEX_LOCK(m_job_lock);
-
-    for (itr = m_io_jobs.begin();
-            itr != m_io_jobs.end(); )
+    for (itr = m_thrd_fds[thrd_index].begin();
+            itr != m_thrd_fds[thrd_index].end(); )
     {
-        pIoJob = *itr;
-        
+        io_fd = *itr;
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
+
+        if (m_fd_array[io_fd].thrd_index != thrd_index)
+        {
+            _LOG_ERROR("fd %d not in thrd %d when set fdsets, but %d", io_fd, thrd_index, m_fd_array[io_fd].thrd_index);
+        }
+
+        pIoJob = m_fd_array[io_fd].ioJob;
+        if (NULL == pIoJob)
+        {
+            _LOG_ERROR("fd %d has no job when set fdsets", io_fd);
+            continue;
+        }
 
         if (pIoJob->get_deleting_flag())
         {
@@ -156,102 +192,82 @@ void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, in
             continue;
         }
 
-        int fd = pIoJob->get_fd();
-
         if (pIoJob->io_event_read())
         {
-            if(FD_ISSET(fd, rset))
+            if(FD_ISSET(io_fd, rset))
             {
                 pIoJob->read_evt_handle();
             }
 
-            if(FD_ISSET(fd, eset))
+            if(FD_ISSET(io_fd, eset))
             {
-                _LOG_WARN("fd %d execption evt comming when has read job", fd);
+                _LOG_WARN("fd %d execption evt comming when has read job", io_fd);
                 pIoJob->read_evt_handle();
             }
         }
         
 		if (pIoJob->io_event_write())
         {
-            if(FD_ISSET(fd, wset))
+            if(FD_ISSET(io_fd, wset))
             {
                 pIoJob->write_evt_handle();
             }
 
-            if(FD_ISSET(fd, eset))
+            if(FD_ISSET(io_fd, eset))
             {
-                _LOG_WARN("fd %d execption evt comming when has write job", fd);
+                _LOG_WARN("fd %d execption evt comming when has write job", io_fd);
                 pIoJob->write_evt_handle();
             }
         }
     }
-
-    MUTEX_UNLOCK(m_job_lock);
 }
 
-#if 0
-void CIoJobMgr::move_to_deling_job(CIoJob* ioJob)
+void CIoJobMgr::handle_deling_job(int thrd_index)
 {
-    MUTEX_LOCK(m_job_lock);
-    m_del_io_jobs.push_back(ioJob);
-    MUTEX_UNLOCK(m_job_lock);
-}
-#endif
+    IOFD_LIST_Itr itr;
+    int io_fd = 0;
+    CIoJob *pIoJob = NULL;
 
-void CIoJobMgr::handle_deling_job(unsigned int thrd_index)
-{
-    IOJOB_LIST_Itr itr;
-    IOJOB_LIST deleted_job;
-	CIoJob *pIoJob = NULL;
-
-    /*avoid to call free_callback in lock*/
-    MUTEX_LOCK(m_job_lock);
-    #if 0
-    for (itr = m_del_io_jobs.begin();
-            itr != m_del_io_jobs.end(); )
+    for (itr = m_thrd_fds[thrd_index].begin();
+            itr != m_thrd_fds[thrd_index].end(); )
     {
-        if ((*itr)->get_thrd_index() == thrd_index)
-        {
-            /*add to deleted list*/            
-            deleted_job.push_back(*itr);
-            itr = m_del_io_jobs.erase(itr);
-        }
-        else
-        {
-            itr++;
-        }
-    }
-    #endif
-    for (itr = m_io_jobs.begin();
-            itr != m_io_jobs.end(); )
-    {
-        pIoJob = *itr;
-        
+        io_fd = *itr;
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
 
-        if (pIoJob->get_thrd_index() == thrd_index)
+        if (m_fd_array[io_fd].thrd_index != thrd_index)
         {
-            if (pIoJob->get_deleting_flag())
-            {
-                m_io_jobs.remove(pIoJob);
-                deleted_job.push_back(pIoJob);
-            }
+            _LOG_ERROR("fd %d not in thrd %d when set fdsets, but %d", io_fd, thrd_index, m_fd_array[io_fd].thrd_index);
+        }
+
+        pIoJob = m_fd_array[io_fd].ioJob;
+        if (NULL == pIoJob)
+        {
+            _LOG_ERROR("fd %d has no job when delete", io_fd);
+            continue;
+        }
+
+        if (pIoJob->get_deleting_flag())
+        {
+            m_thrd_fds[thrd_index].remove(io_fd);
+
+            /*reinit data*/
+            m_fd_array[io_fd].fd = -1;
+            m_fd_array[io_fd].thrd_index = -1;
+            m_fd_array[io_fd].ioJob = NULL;
+
+            /*free resource*/            
+            pIoJob->free_callback();
+            delete pIoJob;
         }
     }
-    MUTEX_UNLOCK(m_job_lock);
 
-    /*really free*/
-    for (itr = deleted_job.begin();
-            itr != deleted_job.end(); )
-    {
-        /*free resource*/            
-        (*itr)->free_callback();
-        delete (*itr);
-
-        itr = deleted_job.erase(itr);
-    }
-    
     return;
+}
+
+BOOL CIoJobMgr::init()
+{
+    m_thrd_fds = (IOFD_LIST*)malloc(sizeof(IOFD_LIST*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
+    memset(m_thrd_fds, 0, sizeof(IOFD_LIST*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
+    return true;
 }

@@ -1,6 +1,9 @@
 #ifndef _THRD_COMM_SRV_H
 #define _THRD_COMM_SRV_H
 
+#include "thrdComm.h"
+#include "CNetAccept.h"
+
 class CThrdComServ  : public CNetAccept {
 public:
 	CThrdComServ(int thrd_index, const char *local_ipstr, uint16_t port) : CNetAccept(local_ipstr, port)
@@ -15,7 +18,7 @@ public:
 		_LOG_INFO("destruct thread comm server on thread %u", m_thrd_index);
 	}
 
-	virtual int init(const char *local_ipstr, uint16_t port);
+	virtual int init();
 	int send_comm_msg(int type, char *buffer, int buffer_len);
 
 	void set_thrd_tid(UTIL_TID tid)
@@ -35,6 +38,6 @@ private:
 	int m_thrd_index;
 	unsigned short m_thrd_dst_port;
 	unsigned long m_thrd_tid;
-}
+};
 
 #endif

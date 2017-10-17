@@ -33,8 +33,6 @@ public:
         _LOG_DEBUG("destruct IoJob");
     };
 
-    virtual void lock() = 0;
-    virtual void unlock() = 0;
     virtual void read_evt_handle() = 0;
     virtual void write_evt_handle() = 0;
     virtual void set_read_callback(void *callback) = 0;
@@ -92,18 +90,7 @@ public:
 		return (m_now_event & IO_FLAG_WRITE);
 	}
 
-	void set_thrd_index(unsigned int thrd_index)
-	{
-		m_thrd_index = thrd_index;
-	}
-	unsigned int get_thrd_index()
-	{
-		return m_thrd_index;
-	}
-	
 private:
-	unsigned int m_thrd_index;
-
 	int  m_fd;
 	void *m_param1;
 	int m_now_event;
@@ -153,49 +140,16 @@ class CWrIoJob: public CIoJob
 {
 public:
 	CWrIoJob(int fd, void *param1) : CIoJob(fd, param1){
-#ifdef _WIN32
-		m_lock = 0;
-#else
-		pthread_spin_init(&m_lock, 0);
-#endif
 	}
     virtual ~CWrIoJob() {
-#ifdef _WIN32
-		m_lock = 0;
-#else
-    	pthread_spin_destroy(&m_lock);
-#endif
     };
 
 public:	
 	void write_evt_handle();
 	void set_write_callback(void *callback);
-	void lock()
-	{
-#ifdef _WIN32
-		while (InterlockedExchange(&m_lock, 1) == 1){
-			sleep_s(0);
-		}
-#else
-		pthread_spin_lock(&m_lock);
-#endif
-	}
-    void unlock()
-    {
-#ifdef _WIN32
-		InterlockedExchange(&m_lock,0);
-#else
-    	pthread_spin_unlock(&m_lock);
-#endif
-    }
-
 private:
 	/*对于write事件, 捕获时会清除, 出现多线程同时设置的问题*/
-#ifdef _WIN32
-	LONG m_lock;
-#else
-	pthread_spinlock_t m_lock;
-#endif
+
 	write_hdl_func  m_write_func;
 };
 

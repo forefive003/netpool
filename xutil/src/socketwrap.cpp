@@ -408,7 +408,7 @@ DLL_API int sock_create_server(char *server_ip, uint16_t port)
     }
 
     /* internet family-specific code encapsulated in bind_server()  */
-    if (_bind_server(server_s, serverip, port) == -1)
+    if (_bind_server(server_s, server_ip, port) == -1)
     {
 #ifndef _WIN32
         printf("unable to bind,%s\n", strerror(errno));

@@ -23,6 +23,7 @@
 #include "CJobIoMgr.h"
 #include "CJobTime.h"
 #include "CThreadPoolMgr.h"
+#include "CThrdComServ.h"
 #include "CNetPoll.h"
 
 CNetPoll *g_NetPoll = NULL;
@@ -38,7 +39,6 @@ CNetPoll::CNetPoll() {
 	m_beat_func = NULL;
 	m_exit_func = NULL;
 
-	m_tid_array = NULL;
 	m_epfd = NULL;
 	
 	m_thrdMsgServ_array = NULL;
@@ -56,7 +56,7 @@ CNetPoll::~CNetPoll() {
 #ifndef _WIN32
 	if (NULL != m_epfd) 
 	{
-		for (int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i ++)
+		for (unsigned int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i ++)
 		{
 			if (m_epfd[i] != -1)
 			{
@@ -79,13 +79,13 @@ CNetPoll::~CNetPoll() {
 
 		for (int i = 0; i < cnt; i++)
 		{
-			if (g_thrdMsgServ_array[i] != NULL)
+			if (m_thrdMsgServ_array[i] != NULL)
 			{
-				delete g_thrdMsgServ_array[i];
+				delete m_thrdMsgServ_array[i];
 			}
 		}
 
-		delete []m_thrdMsgServ_array;
+		free(m_thrdMsgServ_array);
 	}
 
 #ifdef _WIN32
@@ -109,7 +109,7 @@ void CNetPoll::set_debug_func(thrd_init_func init_func,
 void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 {
 	CNetPoll *pollObj = (CNetPoll*)arg;
-	int evt_fd_index = (int)(long)param2;
+	int thrd_index = (int)(long)param2;
 
 #define EVENTMAX 1024
 	struct epoll_event events[EVENTMAX];
@@ -132,25 +132,25 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	}
 #endif
 
-	m_thrdMsgServ_array[evt_fd_index] = new CThrdComServ(THRD_COMM_ADDR_STR, 0);
-	if(0 != m_thrdMsgServ_array[evt_fd_index].init())
+	pollObj->m_thrdMsgServ_array[thrd_index] = new CThrdComServ(thrd_index, THRD_COMM_ADDR_STR, 0);
+	if(0 != pollObj->m_thrdMsgServ_array[thrd_index]->init())
 	{
 		pthread_exit((void*)-1);
 	}
-	m_thrdMsgServ_array[evt_fd_index].set_thrd_tid(util_get_cur_tid());
+	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
 
 	if (pollObj->m_init_func != NULL)
 	{
 		pollObj->m_init_func();
 	}
 
-	_LOG_INFO("work thread[%u] started.", evt_fd_index);
+	_LOG_INFO("work thread[%u] started.", thrd_index);
 
 	MUTEX_LOCK(pollObj->m_lock);
 	pollObj->m_cur_worker_thrds++;
 	MUTEX_UNLOCK(pollObj->m_lock);
 
-	g_TimeJobMgr->begin(evt_fd_index);
+	g_TimeJobMgr->begin(thrd_index);
 
 	while(false == pollObj->m_isShutDown)
 	{
@@ -161,10 +161,10 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 			pollObj->m_beat_func();
 		}
 
-		g_IoJobMgr->handle_deling_job(evt_fd_index);
+		g_IoJobMgr->handle_deling_job(thrd_index);
 
 		//MUTEX_LOCK(pollObj->m_ep_lock);
-		fd_num = epoll_wait(pollObj->m_epfd[evt_fd_index], events, EVENTMAX, EPOLL_TIMEOUT*1000);
+		fd_num = epoll_wait(pollObj->m_epfd[thrd_index], events, EVENTMAX, EPOLL_TIMEOUT*1000);
 		//MUTEX_UNLOCK(pollObj->m_ep_lock);
 		if (fd_num < 0)
 		{
@@ -232,10 +232,10 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		}
 
 		/*do timeout jobs*/
-		g_TimeJobMgr->run(evt_fd_index);
+		g_TimeJobMgr->run(thrd_index);
 	}
 
-	g_IoJobMgr->handle_deling_job(evt_fd_index);
+	g_IoJobMgr->handle_deling_job(thrd_index);
 
 	if (pollObj->m_exit_func != NULL)
 	{
@@ -246,36 +246,36 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	pollObj->m_cur_worker_thrds--;
 	MUTEX_UNLOCK(pollObj->m_lock);
 
-	_LOG_INFO("work thread[%u] exited.", evt_fd_index);
+	_LOG_INFO("work thread[%u] exited.", thrd_index);
 }
 #else
 void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 {
 	CNetPoll *pollObj = (CNetPoll*)arg;
-	int evt_fd_index = (int)(long)param2;
+	int thrd_index = (int)(long)param2;
 	///TODO
 	int fd_num = 0;
 	int i = 0;
 
-	m_thrdMsgServ_array[evt_fd_index] = new CThrdComServ(THRD_COMM_ADDR_STR, 0);
-	if(0 != m_thrdMsgServ_array[evt_fd_index].init())
+	pollObj->m_thrdMsgServ_array[thrd_index] = new CThrdComServ(thrd_index, THRD_COMM_ADDR_STR, 0);
+	if(0 != pollObj->m_thrdMsgServ_array[thrd_index]->init())
 	{
 		pthread_exit((void*)-1);
 	}
-	m_thrdMsgServ_array[evt_fd_index].set_thrd_tid(util_get_cur_tid());
+	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
 
 	if (pollObj->m_init_func != NULL)
 	{
 		pollObj->m_init_func();
 	}
 
-	_LOG_INFO("work thread[%u] started.", evt_fd_index);
+	_LOG_INFO("work thread[%u] started.", thrd_index);
 
 	MUTEX_LOCK(pollObj->m_lock);
 	pollObj->m_cur_worker_thrds++;
 	MUTEX_UNLOCK(pollObj->m_lock);
 
-	g_TimeJobMgr->begin(evt_fd_index);
+	g_TimeJobMgr->begin(thrd_index);
 
 	SOCKET hSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -293,7 +293,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 			pollObj->m_beat_func();
 		}
 
-		g_IoJobMgr->handle_deling_job(evt_fd_index);
+		g_IoJobMgr->handle_deling_job(thrd_index);
 
 		int maxFd = 0;
 		maxFd = g_IoJobMgr->walk_to_set_sets(&rset, &wset, &eset);
@@ -326,12 +326,12 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		}
 
 		/*do timeout jobs*/
-		g_TimeJobMgr->run(evt_fd_index);
+		g_TimeJobMgr->run(thrd_index);
 	}
 
 	closesocket(hSocket);
 
-	g_IoJobMgr->handle_deling_job(evt_fd_index);
+	g_IoJobMgr->handle_deling_job(thrd_index);
 
 	if (pollObj->m_exit_func != NULL)
 	{
@@ -342,11 +342,11 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	pollObj->m_cur_worker_thrds--;
 	MUTEX_UNLOCK(pollObj->m_lock);
 
-	_LOG_INFO("work thread[%u exited.", evt_fd_index);
+	_LOG_INFO("work thread[%u] exited.", thrd_index);
 }
 #endif
 
-void CNetPoll::pause_io_writing_evt(CIoJob *jobNode)
+void CNetPoll::pause_io_writing_evt(int thrd_index, CIoJob *jobNode)
 {
 	if (jobNode->io_event_write() == false)
 	{
@@ -362,21 +362,25 @@ void CNetPoll::pause_io_writing_evt(CIoJob *jobNode)
 		memset(&ev, 0, sizeof(ev));
 		ev.events = EPOLLIN | EPOLLET;
 		ev.data.ptr = (void*)jobNode;
-		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_MOD failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
-			_LOG_DEBUG("pause write event from io job, fd %d.", jobNode->get_fd());
+			_LOG_DEBUG("pause write event from io job, fd %d on thrd %d.", jobNode->get_fd(), thrd_index);
 		}
 	}
 	else
 	{
 		/*del*/
-		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+		}
+		else
+		{
+			_LOG_DEBUG("del write event from io job, fd %d on thrd %d.", jobNode->get_fd(), thrd_index);
 		}
 	}
 #endif
@@ -384,7 +388,7 @@ void CNetPoll::pause_io_writing_evt(CIoJob *jobNode)
 	jobNode->del_write_io_event();
 }
 
-void CNetPoll::pause_io_reading_evt(CIoJob *jobNode)
+void CNetPoll::pause_io_reading_evt(int thrd_index, CIoJob *jobNode)
 {
 	if (jobNode->io_event_read() == false)
 	{
@@ -400,25 +404,26 @@ void CNetPoll::pause_io_reading_evt(CIoJob *jobNode)
 		memset(&ev, 0, sizeof(ev));
 		ev.events = EPOLLOUT | EPOLLET;
 		ev.data.ptr = (void*)jobNode;
-		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_MOD failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
-			_LOG_DEBUG("pause read event from io job, fd %d.", jobNode->get_fd());
+			_LOG_DEBUG("pause read event from io job, fd %d on thrd %d.", jobNode->get_fd(), thrd_index);
 		}
 	}
 	else
 	{
 		/*del*/
-		if(epoll_ctl(m_epfd[jobNode->get_thrd_index()], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
-			_LOG_DEBUG("pause read event from io job, fd %d, no event now.", jobNode->get_fd());
+			_LOG_DEBUG("pause read event from io job, fd %d on thrd %d, no event now.", 
+				jobNode->get_fd(), thrd_index);
 		}
 	}
 #endif
@@ -426,43 +431,31 @@ void CNetPoll::pause_io_reading_evt(CIoJob *jobNode)
 	jobNode->del_read_io_event();
 }
 
-BOOL CNetPoll::pause_io_reading_evt(int fd)
+BOOL CNetPoll::_pause_io_reading_evt_entity(int fd, int thrd_index)
 {
 	CIoJob *job_node = NULL;
 
-	g_IoJobMgr->lock();
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{	
-		g_IoJobMgr->unlock();
 		_LOG_ERROR("io job fd %d not exist when pause read.", fd);
 		return false;
 	}
-
-	job_node->lock();
-	this->pause_io_reading_evt(job_node);
-	job_node->unlock();
-
-	g_IoJobMgr->unlock();
-
+	this->pause_io_reading_evt(thrd_index, job_node);
 	return true;
 }
 
-BOOL CNetPoll::resume_io_reading_evt(int fd)
+BOOL CNetPoll::_resume_io_reading_evt_entity(int fd, int thrd_index)
 {
 	char err_buf[64] = {0};
 	CIoJob *job_node = NULL;
 
-	g_IoJobMgr->lock();
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{	
-		g_IoJobMgr->unlock();
 		_LOG_ERROR("io job fd %d not exist when resume read.", fd);
 		return false;
 	}
-
-	job_node->lock();
 
 	if (job_node->io_event_write())
 	{
@@ -471,17 +464,15 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 		memset(&ev, 0, sizeof(ev));
 		ev.data.ptr = (void*)job_node;
 		ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, fd, &ev) != 0)
 		{
-			job_node->unlock();
-			g_IoJobMgr->unlock();
 			_LOG_ERROR("epoll_ctl mod to read failed, fd %d, epfd %d, errno %d, %s.",
-								fd,	m_epfd[job_node->get_thrd_index()],
+								fd,	m_epfd[thrd_index],
 								errno, str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 #endif
-		_LOG_INFO("modify job, resume read to write job, fd %d.", fd);
+		_LOG_INFO("modify job, resume read to write job, fd %d on thrd %d.", fd, thrd_index);
 	}
 	/*加个判断,避免重复add read job*/
 	else if (!job_node->io_event_read())
@@ -491,40 +482,34 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 		memset(&ev, 0, sizeof(ev));
 		ev.data.ptr = (void*)job_node;
 		ev.events = EPOLLIN | EPOLLET;
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_ADD, fd, &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
-			job_node->unlock();
-			g_IoJobMgr->unlock();
 			_LOG_ERROR("epoll_ctl resume read failed, fd %d, %s.", fd,
 					 str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}	
 #endif
 
-		_LOG_INFO("modify job, resume read event, fd %d.", fd);
+		_LOG_INFO("modify job, resume read event, fd %d on thrd %d.", fd, thrd_index);
 	}
 	else
 	{
-		_LOG_WARN("already has read when resume read event, fd %d.", fd);
+		_LOG_WARN("already has read when resume read event, fd %d on thrd %d.", fd, thrd_index);
 	}
 	
 	job_node->add_read_io_event();
-
-	job_node->unlock();	
-	g_IoJobMgr->unlock();
-
 	return true;
 }
 
-BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func, int  fd, void* param1)
+BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func, 
+	int  fd, void* param1, 
+	int thrd_index)
 {
 	char err_buf[64] = {0};
-
-	g_IoJobMgr->lock();
-	if (NULL != g_IoJobMgr->find_io_job(fd))
+	
+	if (NULL != g_IoJobMgr->get_fd_io_job(thrd_index, fd))
 	{
-		g_IoJobMgr->unlock();
-		_LOG_ERROR("fd %d already has a listen job.", fd);
+		_LOG_ERROR("fd %d already has a listen job when add", fd);
 		return false;
 	}
 
@@ -532,7 +517,6 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func, int  fd, void* pa
 	assert(job_node);
 	job_node->set_read_callback((void*)io_func);
 	job_node->add_read_io_event();
-	job_node->set_thrd_index(0);
 
 #ifndef _WIN32
 	struct epoll_event ev;
@@ -543,8 +527,6 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func, int  fd, void* pa
 	{
 		if(epoll_ctl(m_epfd[0], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
-			g_IoJobMgr->unlock();
-
 			delete job_node;
 			_LOG_ERROR("epoll_ctl add listen failed, fd %d, %s.", fd,
 					str_error_s(err_buf, sizeof(err_buf), errno));
@@ -554,35 +536,25 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func, int  fd, void* pa
 	}	
 #endif
 
-	g_IoJobMgr->add_io_job(job_node);
-	g_IoJobMgr->unlock();
-
-	_LOG_INFO("add new listen job, fd %d.", fd);
+	g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+	_LOG_INFO("add new listen job on thrd %d, fd %d.", thrd_index, fd);
 	return true;
 }
 
-BOOL CNetPoll::_del_listen_job_entity(int fd, free_hdl_func free_func)
+BOOL CNetPoll::_del_listen_job_entity(int fd, free_hdl_func free_func, int thrd_index)
 {
 	char err_buf[64] = {0};
 
 	CIoJob *job_node = NULL;
-	BOOL ret = true;
 
-	g_IoJobMgr->lock();
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
-		g_IoJobMgr->unlock();
-		_LOG_ERROR("listen job fd %d not exist.", fd);
+		_LOG_ERROR("listen job fd %d not exist when del", fd);
 		return false;
 	}
 	job_node->set_free_callback((void*)free_func);
 	job_node->set_deleting_flag();
-
-	//g_IoJobMgr->del_io_job(job_node);
-	//g_IoJobMgr->move_to_deling_job(job_node);
-
-	g_IoJobMgr->unlock();
 
 #ifndef _WIN32
 	/*delete from epoll fd*/
@@ -596,20 +568,20 @@ BOOL CNetPoll::_del_listen_job_entity(int fd, free_hdl_func free_func)
 	}
 #endif
 
-	_LOG_INFO("del listen job, fd %d.", fd);
-	return ret;
+	_LOG_INFO("del listen job, fd %d on thrd %d", fd, thrd_index);
+	return true;
 }
 
 BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 						int  fd, void* param1,
-						unsigned int thrd_index,
+						int thrd_index,
 						int bufferSize, BOOL isTcp)
 {
 	char err_buf[64] = {0};
 
 	CIoJob *job_node = NULL;
 
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
 		if (isTcp)
@@ -622,11 +594,9 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		}
 
 		assert(job_node);
-		job_node->lock();
 		job_node->set_read_callback((void*)io_func);
 		job_node->add_read_io_event();
 		job_node->init_recv_buf(bufferSize);
-		job_node->set_thrd_index(thrd_index);
 #ifndef _WIN32
 		struct epoll_event ev;
 		memset(&ev, 0, sizeof(ev));
@@ -634,24 +604,17 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		ev.data.ptr = (void*)job_node;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
-			job_node->unlock();
-
 			delete job_node;
 			_LOG_ERROR("epoll_ctl add read failed, fd %d, %s.", fd,
 					 str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 #endif
-		job_node->unlock();
-
-		g_IoJobMgr->add_io_job(job_node);
-		_LOG_INFO("add new read job, fd %d.", fd);
-		
+		g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+		_LOG_INFO("add new read job, fd %d on thrd %d.", fd, thrd_index);
 		return true;
 	}
 
-	job_node->lock();
-	
 	if (job_node->io_event_write())
 	{
 #ifndef _WIN32
@@ -659,16 +622,15 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		memset(&ev, 0, sizeof(ev));
 		ev.data.ptr = (void*)job_node;
 		ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, fd, &ev) != 0)
 		{
-			job_node->unlock();
 			_LOG_ERROR("epoll_ctl mod to read failed, fd %d, epfd %d, errno %d, %s.",
-								fd,	m_epfd[job_node->get_thrd_index()],
+								fd,	m_epfd[thrd_index],
 								errno, str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 #endif
-		_LOG_INFO("modify job, add read to write job, fd %d.", fd);
+		_LOG_INFO("modify job, add read to write job, fd %d on thrd %d.", fd, thrd_index);
 	}
 	/*加个判断,避免重复add read job*/
 	else if (!job_node->io_event_read())
@@ -680,32 +642,28 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		ev.events = EPOLLIN | EPOLLET;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
-			job_node->unlock();
 			_LOG_ERROR("epoll_ctl add read failed, fd %d, %s.", fd,
 					 str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}	
 #endif
 
-		_LOG_INFO("modify job, add read event, fd %d.", fd);
+		_LOG_INFO("modify job, add read event, fd %d on thrd %d.", fd, thrd_index);
 	}
 	
 	job_node->set_read_callback((void*)io_func);
 	job_node->add_read_io_event();
 	job_node->init_recv_buf(bufferSize);
-
-	job_node->unlock();	
-	
 	return true;
 }
 
-BOOL CNetPoll::_del_read_job_entity(int fd, free_hdl_func free_func)
+BOOL CNetPoll::_del_read_job_entity(int fd, free_hdl_func free_func, int thrd_index)
 {
 	char err_buf[64] = {0};
 
 	CIoJob *job_node = NULL;
 
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
 		_LOG_ERROR("read job fd %d not exist.", fd);
@@ -713,8 +671,6 @@ BOOL CNetPoll::_del_read_job_entity(int fd, free_hdl_func free_func)
 	}
 
 	job_node->set_free_callback((void*)free_func);
-
-	job_node->lock();
 
 	if (job_node->io_event_write())
 	{
@@ -725,52 +681,46 @@ BOOL CNetPoll::_del_read_job_entity(int fd, free_hdl_func free_func)
 		memset(&ev, 0, sizeof(ev));
 		ev.events = EPOLLOUT | EPOLLET;
 		ev.data.ptr = (void*)job_node;
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, fd, &ev) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_MOD failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 #endif
-		_LOG_INFO("del read event and set to write, fd %d", fd);
+		_LOG_INFO("del read event and set to write, fd %d on thrd %d", fd, thrd_index);
 	}
 	else if (job_node->io_event_read())
 	{
 #ifndef _WIN32
 		/*delete from epoll fd*/
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_DEL, fd, NULL) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 #endif
-		_LOG_INFO("del read event and del job, fd %d", fd);
+		_LOG_INFO("del read event and del job, fd %d on thrd %d", fd, thrd_index);
 		job_node->set_deleting_flag();
-		//g_IoJobMgr->del_io_job(job_node);
-		//g_IoJobMgr->move_to_deling_job(job_node);
 	}
 	else
 	{
 		/*有可能job上什么事件都没有*/
 		job_node->set_deleting_flag();
-		//g_IoJobMgr->del_io_job(job_node);
-		//g_IoJobMgr->move_to_deling_job(job_node);
-
-		_LOG_INFO("del read job, fd %d.", fd);
+		_LOG_INFO("del read job, fd %d on thrd %d", fd, thrd_index);
 	}
 
 	job_node->del_read_io_event();
-	job_node->unlock();
 	return true;
 }
 
 BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 						int  fd, void* param1, 
-						unsigned int thrd_index,
+						int thrd_index,
 						BOOL isTcp)
 {
 	char err_buf[64] = {0};
 
 	CIoJob *job_node = NULL;
 
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
 		if (isTcp)
@@ -783,10 +733,8 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		}
 
 		assert(job_node);
-		job_node->lock();
 		job_node->set_write_callback((void*)io_func);
 		job_node->add_write_io_event();
-		job_node->set_thrd_index(thrd_index);
 
 #ifndef _WIN32
 		struct epoll_event ev;
@@ -795,29 +743,22 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		ev.data.ptr = (void*)job_node;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
-			job_node->unlock();
-
 			delete job_node;
 			_LOG_ERROR("epoll_ctl add write failed, fd %d, %s.", fd,
 					str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 #endif
-		job_node->unlock();
-
-		g_IoJobMgr->add_io_job(job_node);
-
-		_LOG_INFO("add new write job, fd %d.", fd);
+		g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+		_LOG_INFO("add new write job, fd %d on thrd %d.", fd, thrd_index);
 		return true;
 	}
 
 	job_node->set_write_callback((void*)io_func);
 
-	job_node->lock();
-
 	if (false == job_node->io_event_write())
 	{
-		_LOG_DEBUG("modify job, add write event, fd %d.", fd);
+		_LOG_DEBUG("modify job, add write event, fd %d on thrd %d.", fd, thrd_index);
 		job_node->add_write_io_event();
 
 #ifndef _WIN32		
@@ -828,9 +769,8 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		if (job_node->io_event_read())
 		{
 			ev.events |= EPOLLIN | EPOLLET;
-			if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
+			if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, fd, &ev) != 0)
 			{
-				job_node->unlock();
 				_LOG_ERROR("epoll_ctl mod to write failed, fd %d, %s.",
 									fd,	str_error_s(err_buf, sizeof(err_buf), errno));
 				return false;
@@ -840,7 +780,6 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		{
 			if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 			{
-				job_node->unlock();
 				_LOG_ERROR("epoll_ctl add write failed, fd %d, %s.", fd,
 						str_error_s(err_buf, sizeof(err_buf), errno));
 				return false;
@@ -849,18 +788,17 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 #endif
 	}
 	
-	job_node->unlock();
 	return true;
 }
 
 
-BOOL CNetPoll::_del_write_job_entity(int fd, free_hdl_func free_func)
+BOOL CNetPoll::_del_write_job_entity(int fd, free_hdl_func free_func, int thrd_index)
 {
 	char err_buf[64] = {0};
 
 	CIoJob *job_node = NULL;
 
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
 		/*对于write事件, 在处理时会自动停止,因此如果del_read_job会直接删除,
@@ -870,7 +808,6 @@ BOOL CNetPoll::_del_write_job_entity(int fd, free_hdl_func free_func)
 	}
 	job_node->set_free_callback((void*)free_func);
 
-	job_node->lock();
 	if (job_node->io_event_read())
 	{
 #ifndef _WIN32
@@ -880,55 +817,48 @@ BOOL CNetPoll::_del_write_job_entity(int fd, free_hdl_func free_func)
 		memset(&ev, 0, sizeof(ev));
 		ev.events = EPOLLIN | EPOLLET;
 		ev.data.ptr = (void*)job_node;
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_MOD, fd, &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, fd, &ev) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_MOD failed, epfd %d, %s.",
-				m_epfd[job_node->get_thrd_index()],
+				m_epfd[thrd_index],
 				str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 #endif
-		_LOG_INFO("del write event and set to read, fd %d", fd);
+		_LOG_INFO("del write event and set to read, fd %d on thrd %d", fd, thrd_index);
 	}
 	else if (job_node->io_event_write())
 	{
 #ifndef _WIN32
 		/*delete from epoll fd*/
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_DEL, fd, NULL) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, epfd %d, %s.", 
-				m_epfd[job_node->get_thrd_index()],
+				m_epfd[thrd_index],
 				str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 
 #endif
-		_LOG_INFO("del write event and del job, fd %d", fd);
+		_LOG_INFO("del write event and del job, fd %d on thrd %d", fd, thrd_index);
 
 		job_node->set_deleting_flag();
-		//g_IoJobMgr->del_io_job(job_node);
-		//g_IoJobMgr->move_to_deling_job(job_node);
 	}
 	else
 	{
 		job_node->set_deleting_flag();
-		//g_IoJobMgr->del_io_job(job_node);
-		//g_IoJobMgr->move_to_deling_job(job_node);
-
-		_LOG_INFO("del write job, fd %d.", fd);
+		_LOG_INFO("del write job, fd %d on thrd %d", fd, thrd_index);
 	}
 
 	job_node->del_write_io_event();
-	job_node->unlock();
-
 	return true;
 }
 
-BOOL CNetPoll::_del_io_job_entity(int fd, free_hdl_func free_func)
+BOOL CNetPoll::_del_io_job_entity(int fd, free_hdl_func free_func, int thrd_index)
 {
 	char err_buf[64] = {0};
 
 	CIoJob *job_node = NULL;
 
-	job_node = g_IoJobMgr->find_io_job(fd);
+	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
 		/*对于write事件, 在处理时会自动停止,因此如果del_read_job会直接删除,
@@ -937,50 +867,243 @@ BOOL CNetPoll::_del_io_job_entity(int fd, free_hdl_func free_func)
 		return false;
 	}
 	job_node->set_free_callback((void*)free_func);
-
-	job_node->lock();
 	if (job_node->io_event_read() || job_node->io_event_write())
 	{
 		job_node->del_write_io_event();
 		job_node->del_read_io_event();
 #ifndef _WIN32
 		/*delete from epoll fd*/
-		if(epoll_ctl(m_epfd[job_node->get_thrd_index()], EPOLL_CTL_DEL, fd, NULL) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, epfd %d, %s.", 
-				m_epfd[job_node->get_thrd_index()],
+				m_epfd[thrd_index],
 				str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 
 #endif
-		_LOG_INFO("del io job, fd %d", fd);
-
+		_LOG_INFO("del io job, fd %d on thrd %d", fd, thrd_index);
 		job_node->set_deleting_flag();
-		//g_IoJobMgr->del_io_job(job_node);
-		//g_IoJobMgr->move_to_deling_job(job_node);
 	}
 	else
 	{
-		job_node->set_deleting_flag();
-		//g_IoJobMgr->del_io_job(job_node);
-		//g_IoJobMgr->move_to_deling_job(job_node);
-
-		_LOG_INFO("del io job, fd %d, no event on it.", fd);
+		_LOG_INFO("del io job, fd %d on thrd %d, no event on it.", fd, thrd_index);
+		job_node->set_deleting_flag();		
 	}
 
-	job_node->unlock();
 	return true;
 }
 
-BOOL CNetPoll::init_event_fds()
+BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
+								int fd, void* param1)
 {
-	m_thrdMsgServ_array = new (void*)[g_ThreadPoolMgr->m_worker_thrd_cnt];
-	memset(g_thrdMsgServ_array, 0, sizeof(void*)*g_ThreadPoolMgr->m_worker_thrd_cnt);
+	int thrd_index = get_next_thrd_index();
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_add_listen_job_entity(acpt_func, fd, param1, thrd_index);
+	}
+
+	MSG_ADD_LISTEN_JOB_T msgAddListenJob;
+	msgAddListenJob.acpt_func = acpt_func;
+	msgAddListenJob.fd 		= fd;
+	msgAddListenJob.param1	= param1;
+	msgAddListenJob.thrd_index = thrd_index;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_ADD_LISTEN_JOB, 
+			(char*)&msgAddListenJob, sizeof(msgAddListenJob)))
+	{
+		return false;
+	}
+	return true;
+}
+BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
+{
+	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_del_listen_job_entity(fd, free_func, thrd_index);
+	}
+
+	MSG_DEL_LISTEN_JOB_T msgDelListenJob;
+	msgDelListenJob.fd = fd;
+	msgDelListenJob.free_func = free_func;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_LISTEN_JOB, 
+			(char*)&msgDelListenJob, sizeof(msgDelListenJob)))
+	{
+		return false;
+	}
+	return true;
+}
+
+BOOL CNetPoll::add_read_job(read_hdl_func read_func,
+				int fd, 
+				void* param1,
+				int thrd_index,
+				int bufferSize,
+				BOOL isTcp)
+{
+	if (thrd_index >= (int)g_ThreadPoolMgr->m_worker_thrd_cnt)
+	{
+		thrd_index = get_next_thrd_index();
+	}
+
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_add_read_job_entity(read_func, fd, param1, thrd_index, bufferSize, isTcp);
+	}
+
+	MSG_ADD_READ_JOB_T msgAddReadJob;
+	msgAddReadJob.read_func = read_func;
+	msgAddReadJob.fd 		= fd;
+	msgAddReadJob.param1	= param1;
+	msgAddReadJob.thrd_index = thrd_index;
+	msgAddReadJob.bufferSize = bufferSize;
+	msgAddReadJob.isTcp 	 = isTcp;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_ADD_READ_JOB, 
+			(char*)&msgAddReadJob, sizeof(msgAddReadJob)))
+	{
+		return false;
+	}
+	return true;
+}
+
+BOOL CNetPoll::del_read_job(int  fd, free_hdl_func free_func)
+{
+	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_del_read_job_entity(fd, free_func, thrd_index);
+	}
+
+	MSG_DEL_READ_JOB_T msgDelReadJob;
+	msgDelReadJob.fd = fd;
+	msgDelReadJob.free_func = free_func;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_READ_JOB, 
+			(char*)&msgDelReadJob, sizeof(msgDelReadJob)))
+	{
+		return false;
+	}
+	return true;		
+}
+
+BOOL CNetPoll::add_write_job(write_hdl_func io_func,
+					int  fd, 
+					void* param1, 
+					int thrd_index,
+					BOOL isTcp)
+{
+	if (thrd_index >= (int)g_ThreadPoolMgr->m_worker_thrd_cnt)
+	{
+		thrd_index = get_next_thrd_index();
+	}
+
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_add_write_job_entity(io_func, fd, param1, thrd_index, isTcp);
+	}
+
+	MSG_ADD_WRITE_JOB_T msgAddWriteJob;
+	msgAddWriteJob.io_func = io_func;
+	msgAddWriteJob.fd 		= fd;
+	msgAddWriteJob.param1	= param1;
+	msgAddWriteJob.thrd_index = thrd_index;
+	msgAddWriteJob.isTcp 	 = isTcp;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_ADD_WRITE_JOB, 
+			(char*)&msgAddWriteJob, sizeof(msgAddWriteJob)))
+	{
+		return false;
+	}
+	return true;
+}
+BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
+{
+	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_del_write_job_entity(fd, free_func, thrd_index);
+	}
+
+	MSG_DEL_WRITE_JOB_T msgDelWriteJob;
+	msgDelWriteJob.fd = fd;
+	msgDelWriteJob.free_func = free_func;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_WRITE_JOB, 
+			(char*)&msgDelWriteJob, sizeof(msgDelWriteJob)))
+	{
+		return false;
+	}
+	return true;		
+}
+
+BOOL CNetPoll::pause_io_reading_evt(int fd)
+{
+	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_pause_io_reading_evt_entity(fd, thrd_index);
+	}
+
+	MSG_PAUSE_READ_T msgPauseRead;
+	msgPauseRead.fd = fd;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_PAUSE_READ, 
+			(char*)&msgPauseRead, sizeof(msgPauseRead)))
+	{
+		return false;
+	}
+	return true;
+}
+BOOL CNetPoll::resume_io_reading_evt(int fd)
+{
+	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_resume_io_reading_evt_entity(fd, thrd_index);
+	}
+
+	MSG_RESUME_READ_T msgResumeRead;
+	msgResumeRead.fd = fd;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_RESUME_READ, 
+			(char*)&msgResumeRead, sizeof(msgResumeRead)))
+	{
+		return false;
+	}
+	return true;
+}
+
+BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
+{
+	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	UTIL_TID tid = util_get_cur_tid();
+	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	{
+		return this->_del_io_job_entity(fd, free_func, thrd_index);
+	}
+
+	MSG_DEL_IO_JOB_T msgDelIoJob;
+	msgDelIoJob.fd = fd;
+	msgDelIoJob.free_func = free_func;
+	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_IO_JOB, 
+			(char*)&msgDelIoJob, sizeof(msgDelIoJob)))
+	{
+		return false;
+	}
+	return true;
+}
+
+BOOL CNetPoll::init()
+{
+	m_thrdMsgServ_array = (CThrdComServ**)malloc(sizeof(CThrdComServ*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
+	memset(m_thrdMsgServ_array, 0, sizeof(CThrdComServ*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
 
 #ifndef _WIN32
 	if (g_ThreadPoolMgr->m_worker_thrd_cnt > 0)
 	{
-		m_epfd = malloc(sizeof(int) * g_ThreadPoolMgr->m_worker_thrd_cnt);
+		m_epfd = (int*)malloc(sizeof(int) * g_ThreadPoolMgr->m_worker_thrd_cnt);
 
 		for (unsigned int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i++)
 		{
@@ -994,7 +1117,7 @@ BOOL CNetPoll::init_event_fds()
 	}
 	else
 	{
-		m_epfd = malloc(sizeof(int));
+		m_epfd = (int*)malloc(sizeof(int));
 
 		m_epfd[0] = epoll_create(1);
 		if(m_epfd[0] == -1)
@@ -1009,24 +1132,27 @@ BOOL CNetPoll::init_event_fds()
 
 unsigned int CNetPoll::get_next_thrd_index()
 {
+	int ret = 0;
 #ifdef _WIN32
-    while (InterlockedExchange(&m_queue_lock, 1) == 1){
+    while (InterlockedExchange(&m_index_lock, 1) == 1){
         sleep_s(0);
     }
 #else
-    pthread_spin_lock(&m_queue_lock);
+    pthread_spin_lock(&m_index_lock);
 #endif
+	ret = m_cur_thrd_index;
+
 	m_cur_thrd_index++;
 	if (m_cur_thrd_index >= g_ThreadPoolMgr->m_worker_thrd_cnt)
 	{
 		m_cur_thrd_index = 0;
 	}
 #ifdef _WIN32
-    InterlockedExchange(&m_queue_lock, 0);
+    InterlockedExchange(&m_index_lock, 0);
 #else
-    pthread_spin_unlock(&m_queue_lock);
+    pthread_spin_unlock(&m_index_lock);
 #endif
-	return m_cur_thrd_index;
+	return ret;
 }
 
 BOOL CNetPoll::start()
@@ -1035,9 +1161,7 @@ BOOL CNetPoll::start()
 
 	if (NULL != g_ThreadPoolMgr->m_worker_thrd_pool)
 	{
-		unsigned int i = 0;
-
-		for (i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i++)
+		for (unsigned int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i++)
 		{
 			CEvtTask *listenTask = new CEvtTask((evt_hdl_func)loop_handle,
 					(void*)this, (void*)(long)i, NULL, NULL);

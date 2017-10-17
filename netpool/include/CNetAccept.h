@@ -2,6 +2,7 @@
 #ifndef _NET_ACPT_H
 #define _NET_ACPT_H
 
+#include "engine_ip.h"
 
 #ifdef _WIN32
 
@@ -27,10 +28,10 @@ public:
     virtual int init();
     virtual void free();
     
-private:
     int register_accept();
     void unregister_accept();
 
+private:
     static void _accept_callback(int  fd, void* param1);
     virtual int accept_handle(int conn_fd, uint32_t client_ip, uint16_t client_port) = 0;
 

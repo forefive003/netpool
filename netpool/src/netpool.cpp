@@ -18,6 +18,7 @@
 #include "CJobIoMgr.h"
 #include "CJobTime.h"
 #include "CThreadPoolMgr.h"
+#include "CThrdComServ.h"
 #include "CNetPoll.h"
 
 
@@ -28,7 +29,8 @@ DLL_API BOOL np_init_worker_thrds(unsigned int max_thrd_cnt,
 	BOOL ret = FALSE;
 	
 	ret = g_ThreadPoolMgr->init_worker_thrds(max_thrd_cnt, start_core, core_cnt);
-	ret = g_NetPoll->init_event_fds();
+	ret = g_NetPoll->init();
+	ret = g_IoJobMgr->init();
 	return ret;
 }
 DLL_API void np_set_worker_thrds_debug_func(thrd_init_func init_func,
