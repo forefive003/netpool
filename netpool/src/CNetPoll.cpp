@@ -898,7 +898,8 @@ BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
 {
 	int thrd_index = get_next_thrd_index();
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_add_listen_job_entity(acpt_func, fd, param1, thrd_index);
 	}
@@ -918,8 +919,13 @@ BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
 BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
 {
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	if (-1 == thrd_index)
+	{
+		return false;
+	}
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_del_listen_job_entity(fd, free_func, thrd_index);
 	}
@@ -948,7 +954,8 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 	}
 
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_add_read_job_entity(read_func, fd, param1, thrd_index, bufferSize, isTcp);
 	}
@@ -971,8 +978,14 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 BOOL CNetPoll::del_read_job(int  fd, free_hdl_func free_func)
 {
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	if (-1 == thrd_index)
+	{
+		return false;
+	}
+
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_del_read_job_entity(fd, free_func, thrd_index);
 	}
@@ -1000,7 +1013,8 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 	}
 
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_add_write_job_entity(io_func, fd, param1, thrd_index, isTcp);
 	}
@@ -1021,8 +1035,14 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 {
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	if (-1 == thrd_index)
+	{
+		return false;
+	}
+
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_del_write_job_entity(fd, free_func, thrd_index);
 	}
@@ -1041,8 +1061,14 @@ BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 BOOL CNetPoll::pause_io_reading_evt(int fd)
 {
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	if (-1 == thrd_index)
+	{
+		return false;
+	}
+
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_pause_io_reading_evt_entity(fd, thrd_index);
 	}
@@ -1059,8 +1085,14 @@ BOOL CNetPoll::pause_io_reading_evt(int fd)
 BOOL CNetPoll::resume_io_reading_evt(int fd)
 {
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	if (-1 == thrd_index)
+	{
+		return false;
+	}
+
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_resume_io_reading_evt_entity(fd, thrd_index);
 	}
@@ -1078,8 +1110,14 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 {
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+	if (-1 == thrd_index)
+	{
+		return false;
+	}
+	
 	UTIL_TID tid = util_get_cur_tid();
-	if (m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
+	if (NULL == m_thrdMsgServ_array[thrd_index]
+		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
 	{
 		return this->_del_io_job_entity(fd, free_func, thrd_index);
 	}
@@ -1097,34 +1135,23 @@ BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 
 BOOL CNetPoll::init()
 {
-	m_thrdMsgServ_array = (CThrdComServ**)malloc(sizeof(CThrdComServ*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
-	memset(m_thrdMsgServ_array, 0, sizeof(CThrdComServ*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
+	unsigned int cnt = 1;
+    if (g_ThreadPoolMgr->m_worker_thrd_cnt > 0) cnt = g_ThreadPoolMgr->m_worker_thrd_cnt;
+
+	m_thrdMsgServ_array = (CThrdComServ**)malloc(sizeof(CThrdComServ*) * cnt);
+	memset(m_thrdMsgServ_array, 0, sizeof(CThrdComServ*) * cnt);
 
 #ifndef _WIN32
-	if (g_ThreadPoolMgr->m_worker_thrd_cnt > 0)
-	{
-		m_epfd = (int*)malloc(sizeof(int) * g_ThreadPoolMgr->m_worker_thrd_cnt);
+	m_epfd = (int*)malloc(sizeof(int) * cnt);
 
-		for (unsigned int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i++)
-		{
-			m_epfd[i] = epoll_create(1);
-			if(m_epfd[i] == -1)
-			{
-				_LOG_ERROR("epoll_create failed.");
-				assert(0);
-			}			
-		}
-	}
-	else
+	for (unsigned int i = 0; i < cnt; i++)
 	{
-		m_epfd = (int*)malloc(sizeof(int));
-
-		m_epfd[0] = epoll_create(1);
-		if(m_epfd[0] == -1)
+		m_epfd[i] = epoll_create(1);
+		if(m_epfd[i] == -1)
 		{
 			_LOG_ERROR("epoll_create failed.");
 			assert(0);
-		}
+		}			
 	}
 #endif
 	return TRUE;

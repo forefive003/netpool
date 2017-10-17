@@ -77,7 +77,7 @@ DLL_API BOOL np_del_listen_job(int  fd, free_hdl_func free_func)
 
 DLL_API BOOL np_add_read_job(read_hdl_func read_func,
 					int fd, void* param1,
-					unsigned int thrd_index,
+					int thrd_index,
 					int bufferSize)
 {
 	return g_NetPoll->add_read_job(read_func, fd, param1, thrd_index, bufferSize, true);
@@ -85,7 +85,7 @@ DLL_API BOOL np_add_read_job(read_hdl_func read_func,
 
 DLL_API BOOL np_add_udp_read_job(read_hdl_func read_func,
 					int fd, void* param1,
-					unsigned int thrd_index,
+					int thrd_index,
 					int bufferSize)
 {
 	return g_NetPoll->add_read_job(read_func, fd, param1, thrd_index, bufferSize, false);
@@ -113,7 +113,7 @@ DLL_API BOOL np_del_io_job(int fd, free_hdl_func free_func)
 
 DLL_API BOOL np_add_write_job(write_hdl_func write_func,
 					int  fd, void* param1,
-					unsigned int thrd_index)
+					int thrd_index)
 {
 	return g_NetPoll->add_write_job(write_func, fd, param1, thrd_index, true);
 }

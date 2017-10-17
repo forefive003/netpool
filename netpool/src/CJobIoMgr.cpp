@@ -53,11 +53,14 @@ CIoJobMgr::~CIoJobMgr()
 #endif
     }    
 
+#if 0
     if (m_thrd_fds != NULL)
     {
         free(m_thrd_fds);
         m_thrd_fds = NULL;
     }
+#endif
+
 };
 void CIoJobMgr::lock_fd(int fd)
 {
@@ -86,6 +89,11 @@ int CIoJobMgr::get_fd_thrd_index(int fd)
 
 CIoJob* CIoJobMgr::get_fd_io_job(int thrd_index, int fd)
 {
+    if (m_fd_array[fd].thrd_index == -1)
+    {
+        return NULL;
+    }
+
     if (m_fd_array[fd].thrd_index != thrd_index)
     {
         _LOG_ERROR("fd %d's ioJob not in thrd %d, but %d", fd, thrd_index, m_fd_array[fd].thrd_index);
@@ -267,7 +275,5 @@ void CIoJobMgr::handle_deling_job(int thrd_index)
 
 BOOL CIoJobMgr::init()
 {
-    m_thrd_fds = (IOFD_LIST*)malloc(sizeof(IOFD_LIST*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
-    memset(m_thrd_fds, 0, sizeof(IOFD_LIST*) * g_ThreadPoolMgr->m_worker_thrd_cnt);
     return true;
 }

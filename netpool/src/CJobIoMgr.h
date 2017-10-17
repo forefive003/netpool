@@ -52,7 +52,7 @@ public:
 
 private:
 	fd_hdl_t m_fd_array[MAX_FD_CNT];
-	IOFD_LIST *m_thrd_fds;
+	IOFD_LIST m_thrd_fds[64];
 };
 
 extern CIoJobMgr *g_IoJobMgr;
