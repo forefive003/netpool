@@ -7,6 +7,7 @@
 #include <signal.h>
 
 #ifdef _WIN32
+#include <Ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
 #else
@@ -39,8 +40,9 @@ CNetPoll::CNetPoll() {
 	m_beat_func = NULL;
 	m_exit_func = NULL;
 
+#ifndef _WIN32
 	m_epfd = NULL;
-	
+#endif
 	m_thrdMsgServ_array = NULL;
 
 #ifdef _WIN32
@@ -260,8 +262,9 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	pollObj->m_thrdMsgServ_array[thrd_index] = new CThrdComServ(thrd_index, THRD_COMM_ADDR_STR, 0);
 	if(0 != pollObj->m_thrdMsgServ_array[thrd_index]->init())
 	{
-		pthread_exit((void*)-1);
+		return;
 	}
+
 	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
 
 	if (pollObj->m_init_func != NULL)
@@ -296,7 +299,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		g_IoJobMgr->handle_deling_job(thrd_index);
 
 		int maxFd = 0;
-		maxFd = g_IoJobMgr->walk_to_set_sets(&rset, &wset, &eset);
+		maxFd = g_IoJobMgr->walk_to_set_sets(&rset, &wset, &eset, thrd_index);
 		//windows select must has one fd
 		if (maxFd == 0)
 		{
@@ -322,7 +325,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 		}
 		else if (fd_num > 0)
 		{
-			g_IoJobMgr->walk_to_handle_sets(&rset, &wset, &eset);
+			g_IoJobMgr->walk_to_handle_sets(&rset, &wset, &eset, thrd_index);
 		}
 
 		/*do timeout jobs*/

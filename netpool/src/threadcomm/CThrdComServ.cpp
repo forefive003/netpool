@@ -6,6 +6,7 @@
 #include <signal.h>
 
 #ifdef _WIN32
+#include <Ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
 #else
@@ -54,7 +55,11 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
     /* FIXME: it may block! */
     if (connect(s, (struct sockaddr*)&sa, sizeof(sa)) != 0) 
     {
+#ifndef _WIN32
         close(s);
+#else
+		closesocket(s);
+#endif
         _LOG_ERROR("connect to thread %d comm server failed, dst port %d", m_thrd_index, m_thrd_dst_port);
         return -1;
     }
@@ -64,11 +69,12 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
     /*send message*/
     ret = send(s, (char*)&m_thrd_index, sizeof(m_thrd_index), 0);
     if (sizeof(m_thrd_index) != ret)
-    {
-        close(s);
+    {        
 #ifdef _WIN32
+		closesocket(s);
         errno_ll = WSAGetLastError();
 #else
+		close(s);
         errno_ll = errno;
 #endif      
         _LOG_ERROR("send thrd index to thread %d comm server failed, dst port %d, errno %d", 
@@ -78,11 +84,12 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
 
     ret = send(s, (char*)&type, sizeof(type), 0);
     if (sizeof(type) != ret)
-    {
-        close(s);
+    {        
 #ifdef _WIN32
+		closesocket(s);
         errno_ll = WSAGetLastError();
 #else
+		close(s);
         errno_ll = errno;
 #endif      
         _LOG_ERROR("send msg type to thread %d comm server failed, dst port %d, errno %d", 
@@ -93,18 +100,22 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
     ret = send(s, (char*)buffer, buffer_len, 0);
     if (buffer_len != ret)
     {
-        close(s);
 #ifdef _WIN32
+		closesocket(s);
         errno_ll = WSAGetLastError();
 #else
+		close(s);
         errno_ll = errno;
 #endif      
         _LOG_ERROR("send msf buffer to thread %d comm server failed, dst port %d, errno %d", 
             m_thrd_index, m_thrd_dst_port, errno_ll);
         return -1;
     }
-
+#ifdef _WIN32
+	closesocket(s);
+#else
     close(s);
+#endif
     return 0;
 }
 

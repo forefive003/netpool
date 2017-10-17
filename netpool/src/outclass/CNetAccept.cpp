@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -6,6 +5,7 @@
 #include <signal.h>
 
 #ifdef _WIN32
+#include <Ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
 #else

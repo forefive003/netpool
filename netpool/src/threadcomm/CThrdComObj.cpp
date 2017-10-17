@@ -6,6 +6,7 @@
 #include <signal.h>
 
 #ifdef _WIN32
+#include <Ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
 #else
@@ -26,7 +27,7 @@
 
 int CThrdComObj::recv_handle(char *buf, int buf_len)
 {
-    if ((sizeof(m_recv_buf)-m_recv_len) < buf_len)
+    if ((int)(sizeof(m_recv_buf)-m_recv_len) < buf_len)
     {
     	_LOG_ERROR("already recv %d on thrd %d, now recv %d too long", m_recv_len, m_thrd_index, buf_len);
     	return -1;

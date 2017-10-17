@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 #ifdef _WIN32
+#include <Ws2tcpip.h>
 #include <windows.h>
 #else
 #include <unistd.h>

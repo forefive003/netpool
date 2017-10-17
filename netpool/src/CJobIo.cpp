@@ -6,6 +6,7 @@
 #include <signal.h>
 
 #ifdef _WIN32
+#include <Ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
 #else
