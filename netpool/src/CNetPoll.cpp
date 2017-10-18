@@ -135,6 +135,7 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 #endif
 
 	pollObj->m_thrdMsgServ_array[thrd_index] = new CThrdComServ(thrd_index, THRD_COMM_ADDR_STR, 0);
+	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_index(thrd_index);
 	if(0 != pollObj->m_thrdMsgServ_array[thrd_index]->init())
 	{
 		pthread_exit((void*)-1);
@@ -528,7 +529,7 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func,
 	ev.data.ptr = (void*)job_node;
 	//for (unsigned int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i++)
 	{
-		if(epoll_ctl(m_epfd[0], EPOLL_CTL_ADD, fd, &ev) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
 			delete job_node;
 			_LOG_ERROR("epoll_ctl add listen failed, fd %d, %s.", fd,
@@ -563,7 +564,7 @@ BOOL CNetPoll::_del_listen_job_entity(int fd, free_hdl_func free_func, int thrd_
 	/*delete from epoll fd*/
 	//for (unsigned int i = 0; i < g_ThreadPoolMgr->m_worker_thrd_cnt; i++)
 	{
-		if(epoll_ctl(m_epfd[0], EPOLL_CTL_DEL, fd, NULL) != 0)
+		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
@@ -897,9 +898,19 @@ BOOL CNetPoll::_del_io_job_entity(int fd, free_hdl_func free_func, int thrd_inde
 }
 
 BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
-								int fd, void* param1)
+								int fd, void* param1, int thrd_index)
 {
-	int thrd_index = get_next_thrd_index();
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
+	if (thrd_index == INVALID_THRD_INDEX)
+	{
+		thrd_index = get_next_thrd_index();
+	}
+	
 	UTIL_TID tid = util_get_cur_tid();
 	if (NULL == m_thrdMsgServ_array[thrd_index]
 		|| m_thrdMsgServ_array[thrd_index]->get_thrd_tid() == tid)
@@ -921,6 +932,12 @@ BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
 }
 BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (-1 == thrd_index)
 	{
@@ -951,7 +968,13 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 				int bufferSize,
 				BOOL isTcp)
 {
-	if (thrd_index >= (int)g_ThreadPoolMgr->m_worker_thrd_cnt)
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
+	if (thrd_index == INVALID_THRD_INDEX)
 	{
 		thrd_index = get_next_thrd_index();
 	}
@@ -980,6 +1003,12 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 
 BOOL CNetPoll::del_read_job(int  fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (-1 == thrd_index)
 	{
@@ -1010,7 +1039,13 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 					int thrd_index,
 					BOOL isTcp)
 {
-	if (thrd_index >= (int)g_ThreadPoolMgr->m_worker_thrd_cnt)
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
+	if (thrd_index == INVALID_THRD_INDEX)
 	{
 		thrd_index = get_next_thrd_index();
 	}
@@ -1037,6 +1072,12 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 }
 BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (-1 == thrd_index)
 	{
@@ -1063,6 +1104,12 @@ BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 
 BOOL CNetPoll::pause_io_reading_evt(int fd)
 {
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (-1 == thrd_index)
 	{
@@ -1087,6 +1134,12 @@ BOOL CNetPoll::pause_io_reading_evt(int fd)
 }
 BOOL CNetPoll::resume_io_reading_evt(int fd)
 {
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (-1 == thrd_index)
 	{
@@ -1112,6 +1165,12 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 
 BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT)
+	{
+		_LOG_ERROR("My God! fd %d is too large", fd);
+		return false;
+	}
+
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (-1 == thrd_index)
 	{

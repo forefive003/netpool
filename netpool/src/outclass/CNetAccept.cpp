@@ -25,6 +25,8 @@ CNetAccept::CNetAccept(uint16_t port)
     m_listen_fd = -1;
     memset(m_local_ipstr, 0, sizeof(m_local_ipstr));
     strncpy(m_local_ipstr, "0.0.0.0", IP_DESC_LEN);
+
+    m_thrd_index = INVALID_THRD_INDEX;
     _LOG_DEBUG("construct NetAccept on port %u", m_listen_port);
 }
 
@@ -34,6 +36,8 @@ CNetAccept::CNetAccept(const char *local_ipstr, uint16_t port)
     m_listen_fd = -1;
     memset(m_local_ipstr, 0, sizeof(m_local_ipstr));
     strncpy(m_local_ipstr, local_ipstr, IP_DESC_LEN);
+
+    m_thrd_index = INVALID_THRD_INDEX;
     _LOG_DEBUG("construct NetAccept on port %u, local ip %s", m_listen_port, m_local_ipstr);
 }
 
@@ -121,7 +125,7 @@ int CNetAccept::register_accept()
     }
 
     sock_set_unblock(m_listen_fd);
-    np_add_listen_job(CNetAccept::_accept_callback, m_listen_fd, (void*)this);
+    np_add_listen_job(CNetAccept::_accept_callback, m_listen_fd, (void*)this, m_thrd_index);
     
     _LOG_INFO("listen on port %u, fd %d", m_listen_port, m_listen_fd);
     return 0;
@@ -134,6 +138,12 @@ void CNetAccept::unregister_accept()
         _LOG_INFO("stop to listen");
         np_del_listen_job(m_listen_fd, CNetAccept::_free_callback);
     }
+}
+
+void CNetAccept::set_thrd_index(int thrd_index)
+{
+    /*都自动均衡使用线程资源*/
+    m_thrd_index = thrd_index;
 }
 
 int CNetAccept::init()

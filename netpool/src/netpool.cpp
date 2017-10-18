@@ -29,6 +29,12 @@ DLL_API BOOL np_init_worker_thrds(unsigned int max_thrd_cnt,
 {
 	BOOL ret = FALSE;
 	
+	if (max_thrd_cnt > MAX_THRD_CNT)
+	{
+		_LOG_ERROR("max thread count %d is too large.", max_thrd_cnt);
+		return FALSE;
+	}
+
 	ret = g_ThreadPoolMgr->init_worker_thrds(max_thrd_cnt, start_core, core_cnt);
 	ret = g_NetPoll->init();
 	ret = g_IoJobMgr->init();
@@ -65,9 +71,9 @@ DLL_API unsigned int np_evt_jobs_cnt(void* thrdPool)
 	return g_ThreadPoolMgr->evt_task_cnt(thrdPool);
 }
 
-DLL_API BOOL np_add_listen_job(accept_hdl_func acpt_func, int fd, void* param1)
+DLL_API BOOL np_add_listen_job(accept_hdl_func acpt_func, int fd, void* param1, int thrd_index)
 {
-	return g_NetPoll->add_listen_job(acpt_func, fd, param1);
+	return g_NetPoll->add_listen_job(acpt_func, fd, param1, thrd_index);
 }
 
 DLL_API BOOL np_del_listen_job(int  fd, free_hdl_func free_func)

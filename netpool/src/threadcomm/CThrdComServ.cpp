@@ -17,6 +17,7 @@
 #endif
 
 #include "netpool.h"
+#include "socketwrap.h"
 #include "CThread.h"
 #include "CThreadPool.h"
 #include "CJobIo.h"
@@ -121,8 +122,10 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
 
 int CThrdComServ::init()
 {
-    if(0 != register_accept())
+    m_listen_fd = sock_create_server(m_local_ipstr, m_listen_port);
+    if (-1 == m_listen_fd)
     {
+        _LOG_INFO("failed to listen on port %d, local %s", m_listen_port, m_local_ipstr);
         return -1;
     }
 
@@ -137,7 +140,10 @@ int CThrdComServ::init()
         return -1;
     }
 
-    m_thrd_dst_port = thrd_addr.sin_port;
-    _LOG_INFO("thread %d comm server listen on port %u", m_thrd_index, m_thrd_dst_port);
+    m_thrd_dst_port = ntohs(thrd_addr.sin_port);
+    _LOG_INFO("thread %d comm server listen on port %u, fd %d", m_thrd_index, m_thrd_dst_port, m_listen_fd);
+
+    sock_set_unblock(m_listen_fd);
+    np_add_listen_job(CNetAccept::_accept_callback, m_listen_fd, (void*)this, m_thrd_index);
     return 0;
 }

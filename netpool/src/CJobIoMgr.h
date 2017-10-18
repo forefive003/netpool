@@ -1,8 +1,6 @@
 #ifndef _JOB_IO_MGR_H
 #define _JOB_IO_MGR_H
 
-#define  MAX_FD_CNT 65536
-#define  MAX_CONNECTION 65536
 
 typedef struct
 {
@@ -52,7 +50,7 @@ public:
 
 private:
 	fd_hdl_t m_fd_array[MAX_FD_CNT];
-	IOFD_LIST m_thrd_fds[64];
+	IOFD_LIST m_thrd_fds[MAX_THRD_CNT];
 };
 
 extern CIoJobMgr *g_IoJobMgr;

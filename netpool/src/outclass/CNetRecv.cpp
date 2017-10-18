@@ -105,7 +105,7 @@ void CNetRecv::init_common_data()
 
     m_send_q_busy_cnt = 8;
 
-    m_thrd_index = 0;
+    m_thrd_index = INVALID_THRD_INDEX;
     m_is_async_write = true;
     m_is_freeing = false;
 
@@ -577,10 +577,10 @@ int CNetRecv::send_data(char *buf, int buf_len)
     return ret;
 }
 
-void CNetRecv::set_thrd_index(unsigned int thrd_index)
+void CNetRecv::set_thrd_index(int thrd_index)
 {
     /*都自动均衡使用线程资源*/
-    //m_thrd_index = thrd_index;
+    m_thrd_index = thrd_index;
 }
 
 BOOL CNetRecv::is_connected()

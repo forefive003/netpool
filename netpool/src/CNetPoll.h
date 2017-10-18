@@ -47,7 +47,7 @@ public:
 
 public:	
 	BOOL add_listen_job(accept_hdl_func acpt_func,
-								int fd, void* param1);
+								int fd, void* param1, int thrd_index);
 	BOOL del_listen_job(int fd, free_hdl_func free_func);
 	BOOL add_read_job(read_hdl_func read_func,
 					int fd, 
