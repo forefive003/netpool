@@ -28,7 +28,7 @@ CIoJobMgr::CIoJobMgr()
     for(unsigned int ii = 0; ii < MAX_FD_CNT; ii++)
     {
         m_fd_array[ii].fd = -1;
-        m_fd_array[ii].thrd_index = -1;
+        m_fd_array[ii].thrd_index = INVALID_THRD_INDEX;
         m_fd_array[ii].ioJob = NULL;
     #ifdef _WIN32
         m_fd_array[ii].data_lock = 0;
@@ -89,7 +89,7 @@ int CIoJobMgr::get_fd_thrd_index(int fd)
 
 CIoJob* CIoJobMgr::get_fd_io_job(int thrd_index, int fd)
 {
-    if (m_fd_array[fd].thrd_index == -1)
+    if (m_fd_array[fd].thrd_index == INVALID_THRD_INDEX)
     {
         return NULL;
     }
@@ -148,6 +148,8 @@ int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int th
             maxFd = io_fd;
         }
 
+		//g_IoJobMgr->lock_fd(io_fd);
+
         if (pIoJob->io_event_read())
         {
             FD_SET(io_fd, rset);
@@ -158,6 +160,8 @@ int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int th
             FD_SET(io_fd, wset);
             FD_SET(io_fd, eset);
         }
+
+		//g_IoJobMgr->unlock_fd(io_fd);
 #if 0
         else
         {
@@ -257,16 +261,20 @@ void CIoJobMgr::handle_deling_job(int thrd_index)
 
         if (pIoJob->get_deleting_flag())
         {
+			g_IoJobMgr->lock_fd(io_fd);
+
             m_thrd_fds[thrd_index].remove(io_fd);
 
             /*reinit data*/
             m_fd_array[io_fd].fd = -1;
-            m_fd_array[io_fd].thrd_index = -1;
+            m_fd_array[io_fd].thrd_index = INVALID_THRD_INDEX;
             m_fd_array[io_fd].ioJob = NULL;
 
             /*free resource*/            
             pIoJob->free_callback();
             delete pIoJob;
+
+			g_IoJobMgr->unlock_fd(io_fd);
         }
     }
 

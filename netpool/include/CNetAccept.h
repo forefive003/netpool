@@ -40,12 +40,13 @@ private:
     static void _free_callback(int fd, void* param1);
     virtual void free_handle();
 
+public:
+    int m_thrd_index;
+    
 public:   
     int m_listen_fd;
     uint16_t m_listen_port;
     char m_local_ipstr[IP_DESC_LEN + 1];
-
-    int m_thrd_index;
 };
 
 

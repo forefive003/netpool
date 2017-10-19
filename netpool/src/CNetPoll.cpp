@@ -135,12 +135,11 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 #endif
 
 	pollObj->m_thrdMsgServ_array[thrd_index] = new CThrdComServ(thrd_index, THRD_COMM_ADDR_STR, 0);
-	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_index(thrd_index);
+	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
 	if(0 != pollObj->m_thrdMsgServ_array[thrd_index]->init())
 	{
 		pthread_exit((void*)-1);
-	}
-	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
+	}	
 
 	if (pollObj->m_init_func != NULL)
 	{
@@ -261,12 +260,11 @@ void CNetPoll::loop_handle(void *arg, void *param2, void *param3, void *param4)
 	int i = 0;
 
 	pollObj->m_thrdMsgServ_array[thrd_index] = new CThrdComServ(thrd_index, THRD_COMM_ADDR_STR, 0);
+	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
 	if(0 != pollObj->m_thrdMsgServ_array[thrd_index]->init())
 	{
 		return;
-	}
-
-	pollObj->m_thrdMsgServ_array[thrd_index]->set_thrd_tid(util_get_cur_tid());
+	}	
 
 	if (pollObj->m_init_func != NULL)
 	{
@@ -865,7 +863,7 @@ BOOL CNetPoll::_del_io_job_entity(int fd, free_hdl_func free_func, int thrd_inde
 	job_node = g_IoJobMgr->get_fd_io_job(thrd_index, fd);
 	if (NULL == job_node)
 	{
-		/*对于write事件, 在处理时会自动停止,因此如果del_read_job会直接删除,
+		/*maybe normal process 对于write事件, 在处理时会自动停止,因此如果del_read_job会直接删除,
 		程序再调用此接口时job已经不存在,属于正常流程*/
 		//_LOG_DEBUG("write job fd %d not exist when del.", fd);
 		return false;
@@ -918,6 +916,7 @@ BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
 		return this->_add_listen_job_entity(acpt_func, fd, param1, thrd_index);
 	}
 
+#if 0
 	MSG_ADD_LISTEN_JOB_T msgAddListenJob;
 	msgAddListenJob.acpt_func = acpt_func;
 	msgAddListenJob.fd 		= fd;
@@ -929,6 +928,12 @@ BOOL CNetPoll::add_listen_job(accept_hdl_func acpt_func,
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_add_listen_job_entity(acpt_func, fd, param1, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
 BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
 {
@@ -939,7 +944,7 @@ BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
 	}
 
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
-	if (-1 == thrd_index)
+	if (INVALID_THRD_INDEX == thrd_index)
 	{
 		return false;
 	}
@@ -950,15 +955,23 @@ BOOL CNetPoll::del_listen_job(int fd, free_hdl_func free_func)
 		return this->_del_listen_job_entity(fd, free_func, thrd_index);
 	}
 
+#if 0
 	MSG_DEL_LISTEN_JOB_T msgDelListenJob;
 	msgDelListenJob.fd = fd;
 	msgDelListenJob.free_func = free_func;
+	msgDelListenJob.thrd_index = thrd_index;
 	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_LISTEN_JOB, 
 			(char*)&msgDelListenJob, sizeof(msgDelListenJob)))
 	{
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_del_listen_job_entity(fd, free_func, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
 
 BOOL CNetPoll::add_read_job(read_hdl_func read_func,
@@ -976,7 +989,11 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 
 	if (thrd_index == INVALID_THRD_INDEX)
 	{
-		thrd_index = get_next_thrd_index();
+		thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+		if (INVALID_THRD_INDEX == thrd_index)
+		{
+			thrd_index = get_next_thrd_index();
+		}		
 	}
 
 	UTIL_TID tid = util_get_cur_tid();
@@ -986,6 +1003,7 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 		return this->_add_read_job_entity(read_func, fd, param1, thrd_index, bufferSize, isTcp);
 	}
 
+#if 0
 	MSG_ADD_READ_JOB_T msgAddReadJob;
 	msgAddReadJob.read_func = read_func;
 	msgAddReadJob.fd 		= fd;
@@ -999,6 +1017,12 @@ BOOL CNetPoll::add_read_job(read_hdl_func read_func,
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_add_read_job_entity(read_func, fd, param1, thrd_index, bufferSize, isTcp);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
 
 BOOL CNetPoll::del_read_job(int  fd, free_hdl_func free_func)
@@ -1010,7 +1034,7 @@ BOOL CNetPoll::del_read_job(int  fd, free_hdl_func free_func)
 	}
 
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
-	if (-1 == thrd_index)
+	if (INVALID_THRD_INDEX == thrd_index)
 	{
 		return false;
 	}
@@ -1022,15 +1046,23 @@ BOOL CNetPoll::del_read_job(int  fd, free_hdl_func free_func)
 		return this->_del_read_job_entity(fd, free_func, thrd_index);
 	}
 
+#if 0
 	MSG_DEL_READ_JOB_T msgDelReadJob;
 	msgDelReadJob.fd = fd;
 	msgDelReadJob.free_func = free_func;
+	msgDelReadJob.thrd_index = thrd_index;
 	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_READ_JOB, 
 			(char*)&msgDelReadJob, sizeof(msgDelReadJob)))
 	{
 		return false;
 	}
-	return true;		
+	return true;	
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_del_read_job_entity(fd, free_func, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif	
 }
 
 BOOL CNetPoll::add_write_job(write_hdl_func io_func,
@@ -1047,7 +1079,11 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 
 	if (thrd_index == INVALID_THRD_INDEX)
 	{
-		thrd_index = get_next_thrd_index();
+		thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
+		if (INVALID_THRD_INDEX == thrd_index)
+		{
+			thrd_index = get_next_thrd_index();
+		}		
 	}
 
 	UTIL_TID tid = util_get_cur_tid();
@@ -1057,6 +1093,7 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 		return this->_add_write_job_entity(io_func, fd, param1, thrd_index, isTcp);
 	}
 
+#if 0
 	MSG_ADD_WRITE_JOB_T msgAddWriteJob;
 	msgAddWriteJob.io_func = io_func;
 	msgAddWriteJob.fd 		= fd;
@@ -1069,6 +1106,12 @@ BOOL CNetPoll::add_write_job(write_hdl_func io_func,
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_add_write_job_entity(io_func, fd, param1, thrd_index, isTcp);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
 BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 {
@@ -1079,7 +1122,7 @@ BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 	}
 
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
-	if (-1 == thrd_index)
+	if (INVALID_THRD_INDEX == thrd_index)
 	{
 		return false;
 	}
@@ -1091,15 +1134,23 @@ BOOL CNetPoll::del_write_job(int  fd, free_hdl_func free_func)
 		return this->_del_write_job_entity(fd, free_func, thrd_index);
 	}
 
+#if 0
 	MSG_DEL_WRITE_JOB_T msgDelWriteJob;
 	msgDelWriteJob.fd = fd;
 	msgDelWriteJob.free_func = free_func;
+	msgDelWriteJob.thrd_index = thrd_index;
 	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_WRITE_JOB, 
 			(char*)&msgDelWriteJob, sizeof(msgDelWriteJob)))
 	{
 		return false;
 	}
-	return true;		
+	return true;	
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_del_write_job_entity(fd, free_func, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif	
 }
 
 BOOL CNetPoll::pause_io_reading_evt(int fd)
@@ -1111,7 +1162,7 @@ BOOL CNetPoll::pause_io_reading_evt(int fd)
 	}
 
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
-	if (-1 == thrd_index)
+	if (INVALID_THRD_INDEX == thrd_index)
 	{
 		return false;
 	}
@@ -1123,15 +1174,24 @@ BOOL CNetPoll::pause_io_reading_evt(int fd)
 		return this->_pause_io_reading_evt_entity(fd, thrd_index);
 	}
 
+#if 0
 	MSG_PAUSE_READ_T msgPauseRead;
 	msgPauseRead.fd = fd;
+	msgPauseRead.thrd_index = thrd_index;
 	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_PAUSE_READ, 
 			(char*)&msgPauseRead, sizeof(msgPauseRead)))
 	{
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_pause_io_reading_evt_entity(fd, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
+
 BOOL CNetPoll::resume_io_reading_evt(int fd)
 {
 	if (fd >= MAX_FD_CNT)
@@ -1141,7 +1201,7 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 	}
 
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
-	if (-1 == thrd_index)
+	if (INVALID_THRD_INDEX == thrd_index)
 	{
 		return false;
 	}
@@ -1153,14 +1213,22 @@ BOOL CNetPoll::resume_io_reading_evt(int fd)
 		return this->_resume_io_reading_evt_entity(fd, thrd_index);
 	}
 
+#if 0
 	MSG_RESUME_READ_T msgResumeRead;
 	msgResumeRead.fd = fd;
+	msgResumeRead.thrd_index = thrd_index;
 	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_RESUME_READ, 
 			(char*)&msgResumeRead, sizeof(msgResumeRead)))
 	{
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_resume_io_reading_evt_entity(fd, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
 
 BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
@@ -1172,7 +1240,7 @@ BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 	}
 
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
-	if (-1 == thrd_index)
+	if (INVALID_THRD_INDEX == thrd_index)
 	{
 		return false;
 	}
@@ -1184,15 +1252,23 @@ BOOL CNetPoll::del_io_job(int fd, free_hdl_func free_func)
 		return this->_del_io_job_entity(fd, free_func, thrd_index);
 	}
 
+#if 0
 	MSG_DEL_IO_JOB_T msgDelIoJob;
 	msgDelIoJob.fd = fd;
 	msgDelIoJob.free_func = free_func;
+	msgDelIoJob.thrd_index = thrd_index;
 	if(0 != m_thrdMsgServ_array[thrd_index]->send_comm_msg(MSG_DEL_IO_JOB, 
 			(char*)&msgDelIoJob, sizeof(msgDelIoJob)))
 	{
 		return false;
 	}
 	return true;
+#else
+	g_IoJobMgr->lock_fd(fd);
+	int ret = this->_del_io_job_entity(fd, free_func, thrd_index);
+	g_IoJobMgr->unlock_fd(fd);
+	return ret;
+#endif
 }
 
 BOOL CNetPoll::init()

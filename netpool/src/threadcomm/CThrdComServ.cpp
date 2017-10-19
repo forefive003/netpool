@@ -26,6 +26,19 @@
 #include "thrdComm.h"
 #include "CThrdComObj.h"
 
+const char* g_thrd_com_msg_desc[] = 
+{
+    "MSG_INVALID",
+    "MSG_ADD_LISTEN_IO",
+    "MSG_DEL_LISTEN_IO",
+    "MSG_ADD_READ_IO",
+    "MSG_DEL_READ_IO",
+    "MSG_ADD_WRITE_IO",
+    "MSG_DEL_WRITE_IO",
+    "MSG_PAUSE_READ_IO",
+    "MSG_RESUME_READ_IO",
+};
+
 int CThrdComServ::accept_handle(int conn_fd, uint32_t client_ip, uint16_t client_port)
 {
     CThrdComObj *newCommObj = new CThrdComObj(m_thrd_index, client_ip, client_port, conn_fd);
@@ -117,6 +130,8 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
 #else
     close(s);
 #endif
+
+    _LOG_DEBUG("send comm msg (%S) on thrd %d", g_thrd_com_msg_desc[type], m_thrd_index);
     return 0;
 }
 

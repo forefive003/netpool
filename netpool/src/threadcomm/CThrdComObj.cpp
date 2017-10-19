@@ -29,7 +29,8 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
 {
     if ((int)(sizeof(m_recv_buf)-m_recv_len) < buf_len)
     {
-    	_LOG_ERROR("already recv %d on thrd %d, now recv %d too long", m_recv_len, m_thrd_index, buf_len);
+    	_LOG_ERROR("already recv %d on fd %d thrd %d, now recv %d too long", 
+                m_recv_len, m_fd, m_thrd_index, buf_len);
     	return -1;
     }
 
@@ -38,7 +39,7 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
 
     if (m_recv_len < 8)
     {
-    	_LOG_ERROR("recv %d on thrd %d, wait for data", m_recv_len, m_thrd_index);
+    	_LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     	return 0;
     }
 
@@ -56,8 +57,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     {
     	case MSG_DEL_IO_JOB:
     	{
-    		if (m_recv_len < (int)sizeof(MSG_DEL_IO_JOB_T))
+    		if ((m_recv_len-8) < (int)sizeof(MSG_DEL_IO_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_DEL_IO_JOB_T *delIoJob = NULL;
@@ -67,8 +69,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_ADD_LISTEN_JOB:
 		{
-			if (m_recv_len < (int)sizeof(MSG_ADD_LISTEN_JOB_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_ADD_LISTEN_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_ADD_LISTEN_JOB_T *addListenIoJob = NULL;
@@ -79,8 +82,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_DEL_LISTEN_JOB:
 		{
-			if (m_recv_len < (int)sizeof(MSG_DEL_LISTEN_JOB_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_DEL_LISTEN_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_DEL_LISTEN_JOB_T *delListenIoJob = NULL;
@@ -91,8 +95,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_ADD_READ_JOB:
 		{
-			if (m_recv_len < (int)sizeof(MSG_ADD_READ_JOB_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_ADD_READ_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_ADD_READ_JOB_T *addReadIoJob = NULL;
@@ -107,8 +112,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_DEL_READ_JOB:
 		{
-			if (m_recv_len < (int)sizeof(MSG_DEL_READ_JOB_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_DEL_READ_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_DEL_READ_JOB_T *delReadIoJob = NULL;
@@ -119,8 +125,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_ADD_WRITE_JOB:
 		{
-			if (m_recv_len < (int)sizeof(MSG_ADD_WRITE_JOB_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_ADD_WRITE_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
 
@@ -135,8 +142,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_DEL_WRITE_JOB:
 		{
-			if (m_recv_len < (int)sizeof(MSG_DEL_WRITE_JOB_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_DEL_WRITE_JOB_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_DEL_WRITE_JOB_T *delWriteIoJob = NULL;
@@ -147,8 +155,9 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_PAUSE_READ:
 		{
-			if (m_recv_len < (int)sizeof(MSG_PAUSE_READ_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_PAUSE_READ_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
     		MSG_PAUSE_READ_T *pauseReadIoJob = NULL;
@@ -158,13 +167,20 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     	}
 		case MSG_RESUME_READ:
 		{
-			if (m_recv_len < (int)sizeof(MSG_RESUME_READ_T))
+			if ((m_recv_len-8) < (int)sizeof(MSG_RESUME_READ_T))
     		{
+                _LOG_INFO("recv %d on fd %d thrd %d, wait for data", m_recv_len, m_fd, m_thrd_index);
     			return 0;
     		}
-    		MSG_RESUME_READ_T *resumeReadIoJob = NULL;
-    		resumeReadIoJob = (MSG_RESUME_READ_T*)&m_recv_buf[8];
-    		ret = g_NetPoll->_resume_io_reading_evt_entity(resumeReadIoJob->fd, resumeReadIoJob->thrd_index);
+            if ((m_recv_len-8) > (int)sizeof(MSG_RESUME_READ_T))
+            {
+                _LOG_ERROR("recv %d on fd %d thrd %d, too large", m_recv_len, m_fd, m_thrd_index);
+                return -1;
+            }
+
+    		MSG_RESUME_READ_T *resumeResumeIoJob = NULL;
+    		resumeResumeIoJob = (MSG_RESUME_READ_T*)&m_recv_buf[8];
+    		ret = g_NetPoll->_resume_io_reading_evt_entity(resumeResumeIoJob->fd, resumeResumeIoJob->thrd_index);
     		break;
     	}
     	default:
@@ -172,5 +188,6 @@ int CThrdComObj::recv_handle(char *buf, int buf_len)
     		return -1;
     }
 
+    m_recv_len = 0;
     return ret?0:-1;
 }

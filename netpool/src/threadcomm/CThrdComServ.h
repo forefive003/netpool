@@ -39,4 +39,6 @@ private:
 	unsigned long m_thrd_tid;
 };
 
+extern const char* g_thrd_com_msg_desc[];
+
 #endif

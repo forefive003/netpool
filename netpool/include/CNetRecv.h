@@ -83,8 +83,9 @@ public:
     CSocksSendQ m_send_q;
     unsigned int m_send_q_busy_cnt;
 
-private:
     int m_thrd_index;
+
+private:    
     bool m_is_async_write;
 
     MUTEX_TYPE m_free_lock; /*send_data and free maybe called in diffrent thread,

@@ -311,7 +311,7 @@ void CNetRecv::_free_callback(int  fd, void* param1)
         return;
     }
     
-    _LOG_INFO("(peer %s/%u local %s/%u) fd %d call free callback", recvObj->m_ipstr, recvObj->m_port, 
+    _LOG_DEBUG("(peer %s/%u local %s/%u) fd %d call free callback", recvObj->m_ipstr, recvObj->m_port, 
         recvObj->m_local_ipstr, recvObj->m_local_port,
         recvObj->m_fd);
 
