@@ -52,18 +52,11 @@ CIoJobMgr::~CIoJobMgr()
         pthread_spin_destroy(&m_fd_array[ii].data_lock);
 #endif
     }    
-
-#if 0
-    if (m_thrd_fds != NULL)
-    {
-        free(m_thrd_fds);
-        m_thrd_fds = NULL;
-    }
-#endif
-
 };
 void CIoJobMgr::lock_fd(int fd)
 {
+    assert(fd >= 0 && fd < MAX_FD_CNT);
+
 #ifdef _WIN32
     while (InterlockedExchange(&m_fd_array[fd].data_lock, 1) == 1){
         sleep_s(0);
@@ -75,6 +68,8 @@ void CIoJobMgr::lock_fd(int fd)
 
 void CIoJobMgr::unlock_fd(int fd)
 {
+    assert(fd >= 0 && fd < MAX_FD_CNT);
+
 #ifdef _WIN32
     InterlockedExchange(&m_fd_array[fd].data_lock, 0);
 #else
@@ -84,11 +79,15 @@ void CIoJobMgr::unlock_fd(int fd)
 
 int CIoJobMgr::get_fd_thrd_index(int fd)
 {
+    assert(fd >= 0 && fd < MAX_FD_CNT);
+
     return m_fd_array[fd].thrd_index;
 }
 
 CIoJob* CIoJobMgr::get_fd_io_job(int thrd_index, int fd)
 {
+    assert(fd >= 0 && fd < MAX_FD_CNT);
+
     if (m_fd_array[fd].thrd_index == INVALID_THRD_INDEX)
     {
         return NULL;
@@ -104,6 +103,9 @@ CIoJob* CIoJobMgr::get_fd_io_job(int thrd_index, int fd)
 
 void CIoJobMgr::add_io_job(int fd, int thrd_index, CIoJob* ioJob)
 {
+    assert(fd >= 0 && fd < MAX_FD_CNT);
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
     if ((m_fd_array[fd].ioJob != NULL) || (m_fd_array[fd].fd != -1) )
     {
         _LOG_ERROR("fd %d already has one ioJob, old fd %d", fd, m_fd_array[fd].fd);
@@ -124,12 +126,16 @@ int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int th
     CIoJob *pIoJob = NULL;
     int maxFd = 0;
 
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
     for (itr = m_thrd_fds[thrd_index].begin();
             itr != m_thrd_fds[thrd_index].end(); )
     {
         io_fd = *itr;
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
+
+        assert(io_fd >= 0 && io_fd < MAX_FD_CNT);
 
         if (m_fd_array[io_fd].thrd_index != thrd_index)
         {
@@ -179,12 +185,16 @@ void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, in
     int io_fd = 0;
     CIoJob *pIoJob = NULL;
 
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
     for (itr = m_thrd_fds[thrd_index].begin();
             itr != m_thrd_fds[thrd_index].end(); )
     {
         io_fd = *itr;
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
+
+        assert(io_fd >= 0 && io_fd < MAX_FD_CNT);
 
         if (m_fd_array[io_fd].thrd_index != thrd_index)
         {
@@ -240,12 +250,16 @@ void CIoJobMgr::handle_deling_job(int thrd_index)
     int io_fd = 0;
     CIoJob *pIoJob = NULL;
 
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+    
     for (itr = m_thrd_fds[thrd_index].begin();
             itr != m_thrd_fds[thrd_index].end(); )
     {
         io_fd = *itr;
         /*maybe timenode deleted in callback func, after that, itr not valid*/
         itr++;
+
+        assert(io_fd >= 0 && io_fd < MAX_FD_CNT);
 
         if (m_fd_array[io_fd].thrd_index != thrd_index)
         {

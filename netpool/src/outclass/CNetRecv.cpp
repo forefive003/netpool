@@ -602,6 +602,14 @@ int CNetRecv::init()
 void CNetRecv::free()
 {
     MUTEX_LOCK(m_free_lock);
+    if (m_is_freeing)
+    {
+        MUTEX_UNLOCK(m_free_lock);
+        _LOG_WARN("(peer %s/%u local %s/%u) fd %d is already in freeing.", 
+            m_ipstr, m_port, m_local_ipstr, m_local_port, m_fd);
+        return;
+    }
+
     m_is_freeing = true;
 
     /*if has data not send completed, wait*/
@@ -611,4 +619,5 @@ void CNetRecv::free()
     }
 
     MUTEX_UNLOCK(m_free_lock);
+    return;
 }

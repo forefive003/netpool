@@ -73,11 +73,23 @@ DLL_API unsigned int np_evt_jobs_cnt(void* thrdPool)
 
 DLL_API BOOL np_add_listen_job(accept_hdl_func acpt_func, int fd, void* param1, int thrd_index)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when add listen job", fd);
+		return false;
+	}
+
 	return g_NetPoll->add_listen_job(acpt_func, fd, param1, thrd_index);
 }
 
 DLL_API BOOL np_del_listen_job(int  fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when del listen job", fd);
+		return false;
+	}
+
 	return g_NetPoll->del_listen_job(fd, free_func);
 }
 
@@ -87,6 +99,12 @@ DLL_API BOOL np_add_read_job(read_hdl_func read_func,
 					int thrd_index,
 					int bufferSize)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when add read job", fd);
+		return false;
+	}
+
 	return g_NetPoll->add_read_job(read_func, fd, param1, thrd_index, bufferSize, true);
 }
 
@@ -95,26 +113,55 @@ DLL_API BOOL np_add_udp_read_job(read_hdl_func read_func,
 					int thrd_index,
 					int bufferSize)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when add udp read job", fd);
+		return false;
+	}
 	return g_NetPoll->add_read_job(read_func, fd, param1, thrd_index, bufferSize, false);
 }
 
 DLL_API BOOL np_del_read_job(int  fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when del read job", fd);
+		return false;
+	}
+
 	return g_NetPoll->del_read_job(fd, free_func);
 }
 
 DLL_API BOOL np_pause_read_on_job(int  fd)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when pause read job", fd);
+		return false;
+	}
+
 	return g_NetPoll->pause_io_reading_evt(fd);
 }
 
 DLL_API BOOL np_resume_read_on_job(int  fd)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when resume read job", fd);
+		return false;
+	}
+
 	return g_NetPoll->resume_io_reading_evt(fd);
 }
 
 DLL_API BOOL np_del_io_job(int fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when del io job", fd);
+		return false;
+	}
+
 	return g_NetPoll->del_io_job(fd, free_func);
 }
 
@@ -122,17 +169,35 @@ DLL_API BOOL np_add_write_job(write_hdl_func write_func,
 					int  fd, void* param1,
 					int thrd_index)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when add write job", fd);
+		return false;
+	}
+
 	return g_NetPoll->add_write_job(write_func, fd, param1, thrd_index, true);
 }
 DLL_API BOOL np_add_udp_write_job(write_hdl_func write_func,
 					int  fd, void* param1,
 					int thrd_index)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when add udp write job", fd);
+		return false;
+	}
+
 	return g_NetPoll->add_write_job(write_func, fd, param1, thrd_index, false);
 }
 
 DLL_API BOOL np_del_write_job(int  fd, free_hdl_func free_func)
 {
+	if (fd >= MAX_FD_CNT || fd < 0)
+	{
+		_LOG_ERROR("My God! fd %d is invalid when del write job", fd);
+		return false;
+	}
+
 	return g_NetPoll->del_write_job(fd, free_func);
 }
 
