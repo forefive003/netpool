@@ -1,4 +1,4 @@
-
+﻿
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -298,4 +298,20 @@ void CIoJobMgr::handle_deling_job(int thrd_index)
 BOOL CIoJobMgr::init()
 {
     return true;
+}
+
+int CIoJobMgr::get_fd_cnt_on_thrd(int thrd_index)
+{
+    if (thrd_index < 0 || thrd_index >= (int)g_ThreadPoolMgr->m_worker_thrd_cnt)
+    {
+        return -1;
+    }
+
+    /*每个线程上还有消息处理的fd, 排除掉*/
+    int ret = m_thrd_fds[thrd_index].size();
+    if (ret >= 1)
+    {
+        ret -= 1;
+    }
+    return ret;
 }

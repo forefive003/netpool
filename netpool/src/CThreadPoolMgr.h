@@ -49,8 +49,6 @@ public:
 
 	CThreadPool *m_worker_thrd_pool;
 	uint32_t m_worker_thrd_cnt;
-
-	unsigned long *m_tid_array;
 };
 
 extern CThreadPoolMgr *g_ThreadPoolMgr;

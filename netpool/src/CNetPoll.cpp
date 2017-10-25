@@ -1370,3 +1370,18 @@ void CNetPoll::wait_stop()
 
 	_LOG_INFO("all loop exit succ.");
 }
+
+UTIL_TID CNetPoll::get_thrd_tid(int thrd_index)
+{
+	if (thrd_index < 0 || thrd_index >= g_ThreadPoolMgr->m_worker_thrd_cnt)
+    {
+        return (UTIL_TID)-1;
+    }
+
+    if (m_thrdMsgServ_array != NULL && m_thrdMsgServ_array[thrd_index] != NULL)
+    {
+    	return m_thrdMsgServ_array[thrd_index]->get_thrd_tid();
+    }
+
+    return (UTIL_TID)-1;
+}

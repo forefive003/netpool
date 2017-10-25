@@ -79,6 +79,8 @@ public:
 	
 	void pause_io_writing_evt(int thrd_index, CIoJob *jobNode);
 	void pause_io_reading_evt(int thrd_index, CIoJob *jobNode);
+
+	UTIL_TID get_thrd_tid(int thrd_index);
 private:
 	static void loop_handle(void *arg, void *param2, void *param3, void *param4);
 	unsigned int get_next_thrd_index();

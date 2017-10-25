@@ -22,6 +22,15 @@
 #include "CThrdComServ.h"
 #include "CNetPoll.h"
 
+DLL_API int np_get_thrd_fdcnt(int thrd_index)
+{
+	return g_IoJobMgr->get_fd_cnt_on_thrd(thrd_index);
+}
+
+DLL_API UTIL_TID np_get_thrd_tid(int thrd_index)
+{
+	return g_NetPoll->get_thrd_tid(thrd_index);
+}
 
 DLL_API BOOL np_init_worker_thrds(unsigned int max_thrd_cnt,
 					unsigned int start_core,

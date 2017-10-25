@@ -48,6 +48,7 @@ public:
 	void walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index);
 	void handle_deling_job(int thrd_index);
 
+	int get_fd_cnt_on_thrd(int thrd_index);
 private:
 	fd_hdl_t m_fd_array[MAX_FD_CNT];
 	IOFD_LIST m_thrd_fds[MAX_THRD_CNT];
