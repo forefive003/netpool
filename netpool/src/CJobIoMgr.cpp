@@ -119,6 +119,30 @@ void CIoJobMgr::add_io_job(int fd, int thrd_index, CIoJob* ioJob)
     return;
 }
 
+void CIoJobMgr::del_io_job(int fd, int thrd_index, CIoJob* ioJob)
+{
+    assert(fd >= 0 && fd < MAX_FD_CNT);
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
+    if ((m_fd_array[fd].ioJob != ioJob) || (m_fd_array[fd].fd != fd) )
+    {
+        _LOG_ERROR("fd %d has unsame ioJob when del, old fd %d.", fd, m_fd_array[fd].fd);
+        return;
+    }
+
+    g_IoJobMgr->lock_fd(fd);
+
+    m_thrd_fds[thrd_index].remove(fd);
+
+    /*reinit data*/
+    m_fd_array[fd].fd = -1;
+    m_fd_array[fd].thrd_index = INVALID_THRD_INDEX;
+    m_fd_array[fd].ioJob = NULL;
+
+    g_IoJobMgr->unlock_fd(fd);
+    return;
+}
+
 int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int thrd_index)
 {
     IOFD_LIST_Itr itr;
@@ -275,20 +299,11 @@ void CIoJobMgr::handle_deling_job(int thrd_index)
 
         if (pIoJob->get_deleting_flag())
         {
-			g_IoJobMgr->lock_fd(io_fd);
-
-            m_thrd_fds[thrd_index].remove(io_fd);
-
-            /*reinit data*/
-            m_fd_array[io_fd].fd = -1;
-            m_fd_array[io_fd].thrd_index = INVALID_THRD_INDEX;
-            m_fd_array[io_fd].ioJob = NULL;
+            g_IoJobMgr->del_io_job(io_fd, thrd_index, pIoJob);
 
             /*free resource*/            
             pIoJob->free_callback();
             delete pIoJob;
-
-			g_IoJobMgr->unlock_fd(io_fd);
         }
     }
 

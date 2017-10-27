@@ -366,7 +366,7 @@ void CNetPoll::pause_io_writing_evt(int thrd_index, CIoJob *jobNode)
 		ev.data.ptr = (void*)jobNode;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_MOD failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+			_LOG_ERROR("EPOLL_CTL_MOD failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
@@ -378,7 +378,7 @@ void CNetPoll::pause_io_writing_evt(int thrd_index, CIoJob *jobNode)
 		/*del*/
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+			_LOG_ERROR("EPOLL_CTL_DEL failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
@@ -408,7 +408,7 @@ void CNetPoll::pause_io_reading_evt(int thrd_index, CIoJob *jobNode)
 		ev.data.ptr = (void*)jobNode;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_MOD failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+			_LOG_ERROR("EPOLL_CTL_MOD failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
@@ -420,7 +420,7 @@ void CNetPoll::pause_io_reading_evt(int thrd_index, CIoJob *jobNode)
 		/*del*/
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+			_LOG_ERROR("EPOLL_CTL_DEL failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
 		}
 		else
 		{
@@ -486,7 +486,7 @@ BOOL CNetPoll::_resume_io_reading_evt_entity(int fd, int thrd_index)
 		ev.events = EPOLLIN | EPOLLET;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
-			_LOG_ERROR("epoll_ctl resume read failed, fd %d, %s.", fd,
+			_LOG_ERROR("epoll_ctl resume read failed on thrd %d, fd %d, %s.", thrd_index, fd,
 					 str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}	
@@ -520,6 +520,10 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func,
 	job_node->set_read_callback((void*)io_func);
 	job_node->add_read_io_event();
 
+	/*when add, must before really valid on epfd. othersize maybe has problems on multi threads.
+	add_io_job not called, but a new add_io_job trigger by another event */
+	g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+
 #ifndef _WIN32
 	struct epoll_event ev;
 	memset(&ev, 0, sizeof(ev));
@@ -529,16 +533,17 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func,
 	{
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
+			g_IoJobMgr->del_io_job(fd, thrd_index, job_node);
+
 			delete job_node;
-			_LOG_ERROR("epoll_ctl add listen failed, fd %d, %s.", fd,
+			_LOG_ERROR("epoll_ctl add listen failed  on thrd %d, fd %d, %s.", thrd_index, fd,
 					str_error_s(err_buf, sizeof(err_buf), errno));
 			assert(0);
 			return false;
 		}
 	}	
 #endif
-
-	g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+	
 	_LOG_INFO("add new listen job on thrd %d, fd %d.", thrd_index, fd);
 	return true;
 }
@@ -564,7 +569,7 @@ BOOL CNetPoll::_del_listen_job_entity(int fd, free_hdl_func free_func, int thrd_
 	{
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_DEL failed, %s.", str_error_s(err_buf, sizeof(err_buf), errno));
+			_LOG_ERROR("EPOLL_CTL_DEL failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 	}
@@ -599,6 +604,11 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		job_node->set_read_callback((void*)io_func);
 		job_node->add_read_io_event();
 		job_node->init_recv_buf(bufferSize);
+
+		/*when add, must before really valid on epfd. othersize maybe has problems on multi threads.
+		add_io_job not called, but a new add_io_job trigger by another write event */
+		g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+
 #ifndef _WIN32
 		struct epoll_event ev;
 		memset(&ev, 0, sizeof(ev));
@@ -606,13 +616,13 @@ BOOL CNetPoll::_add_read_job_entity(read_hdl_func io_func,
 		ev.data.ptr = (void*)job_node;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
+			g_IoJobMgr->del_io_job(fd, thrd_index, job_node);
 			delete job_node;
-			_LOG_ERROR("epoll_ctl add read failed, fd %d, %s.", fd,
+			_LOG_ERROR("epoll_ctl add read failed, fd %d on thrd %d, %s.", fd, thrd_index,
 					 str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 #endif
-		g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
 		_LOG_INFO("add new read job, fd %d on thrd %d.", fd, thrd_index);
 		return true;
 	}
@@ -738,6 +748,10 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		job_node->set_write_callback((void*)io_func);
 		job_node->add_write_io_event();
 
+		/*when add, must before really valid on epfd. othersize maybe has problems on multi threads.
+		add_io_job not called, but a new add_io_job trigger by another read event */
+		g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
+
 #ifndef _WIN32
 		struct epoll_event ev;
 		memset(&ev, 0, sizeof(ev));
@@ -745,13 +759,13 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		ev.data.ptr = (void*)job_node;
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 		{
+			g_IoJobMgr->del_io_job(fd, thrd_index, job_node);
 			delete job_node;
 			_LOG_ERROR("epoll_ctl add write failed, fd %d, %s.", fd,
 					str_error_s(err_buf, sizeof(err_buf), errno));
 			return false;
 		}
 #endif
-		g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
 		_LOG_INFO("add new write job, fd %d on thrd %d.", fd, thrd_index);
 		return true;
 	}
@@ -773,7 +787,7 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 			ev.events |= EPOLLIN | EPOLLET;
 			if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, fd, &ev) != 0)
 			{
-				_LOG_ERROR("epoll_ctl mod to write failed, fd %d, %s.",
+				_LOG_ERROR("epoll_ctl mod to write failed on thrd %d, fd %d, %s.", thrd_index,
 									fd,	str_error_s(err_buf, sizeof(err_buf), errno));
 				return false;
 			}
@@ -782,7 +796,7 @@ BOOL CNetPoll::_add_write_job_entity(write_hdl_func io_func,
 		{
 			if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_ADD, fd, &ev) != 0)
 			{
-				_LOG_ERROR("epoll_ctl add write failed, fd %d, %s.", fd,
+				_LOG_ERROR("epoll_ctl add write failed on thrd %d, fd %d, %s.", thrd_index, fd,
 						str_error_s(err_buf, sizeof(err_buf), errno));
 				return false;
 			}
@@ -834,7 +848,8 @@ BOOL CNetPoll::_del_write_job_entity(int fd, free_hdl_func free_func, int thrd_i
 		/*delete from epoll fd*/
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_DEL failed, epfd %d, %s.", 
+			_LOG_ERROR("EPOLL_CTL_DEL failed on thrd %d, epfd %d, %s.", 
+				thrd_index,
 				m_epfd[thrd_index],
 				str_error_s(err_buf, sizeof(err_buf), errno));
 		}
@@ -877,7 +892,8 @@ BOOL CNetPoll::_del_io_job_entity(int fd, free_hdl_func free_func, int thrd_inde
 		/*delete from epoll fd*/
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, fd, NULL) != 0)
 		{
-			_LOG_ERROR("EPOLL_CTL_DEL failed, epfd %d, %s.", 
+			_LOG_ERROR("EPOLL_CTL_DEL failed on thrd %d, epfd %d, %s.", 
+				thrd_index,
 				m_epfd[thrd_index],
 				str_error_s(err_buf, sizeof(err_buf), errno));
 		}
@@ -1373,7 +1389,7 @@ void CNetPoll::wait_stop()
 
 UTIL_TID CNetPoll::get_thrd_tid(int thrd_index)
 {
-	if (thrd_index < 0 || thrd_index >= g_ThreadPoolMgr->m_worker_thrd_cnt)
+	if (thrd_index < 0 || thrd_index >= (int)g_ThreadPoolMgr->m_worker_thrd_cnt)
     {
         return (UTIL_TID)-1;
     }

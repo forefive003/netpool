@@ -38,6 +38,7 @@ public:
 public:
 	BOOL init();	
 	void add_io_job(int fd, int thrd_index, CIoJob* ioJob);
+	void del_io_job(int fd, int thrd_index, CIoJob* ioJob);
 
 	void lock_fd(int fd);
 	void unlock_fd(int fd);
