@@ -232,8 +232,8 @@ void CNetRecv::_send_callback(int  fd, void* param1)
     ret = recvObj->m_send_q.consume_q(recvObj->m_fd);
     if (ret < 0)
     {
-        /*send failed*/
-        recvObj->m_send_q.clean_q();
+        /*send failed, maybe disconnected*/
+        recvObj->free();        
         goto exitAndTryfreeSelf;
     }
 
