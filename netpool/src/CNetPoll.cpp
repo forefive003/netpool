@@ -523,7 +523,6 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func,
 	/*when add, must before really valid on epfd. othersize maybe has problems on multi threads.
 	add_io_job not called, but a new add_io_job trigger by another event */
 	g_IoJobMgr->add_io_job(fd, thrd_index, job_node);
-
 #ifndef _WIN32
 	struct epoll_event ev;
 	memset(&ev, 0, sizeof(ev));
@@ -544,6 +543,7 @@ BOOL CNetPoll::_add_listen_job_entity(accept_hdl_func io_func,
 	}	
 #endif
 	
+	g_IoJobMgr->add_listen_fd(fd);
 	_LOG_INFO("add new listen job on thrd %d, fd %d.", thrd_index, fd);
 	return true;
 }
@@ -575,6 +575,7 @@ BOOL CNetPoll::_del_listen_job_entity(int fd, free_hdl_func free_func, int thrd_
 	}
 #endif
 
+	g_IoJobMgr->del_listen_fd(fd);
 	_LOG_INFO("del listen job, fd %d on thrd %d", fd, thrd_index);
 	return true;
 }

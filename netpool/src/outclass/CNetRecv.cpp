@@ -588,6 +588,11 @@ BOOL CNetRecv::is_connected()
     return m_is_connected;
 }  
 
+BOOL CNetRecv::is_freeing()
+{
+    return m_is_freeing;
+}
+
 int CNetRecv::init()
 {
     if (-1 != m_fd)

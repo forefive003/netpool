@@ -40,8 +40,18 @@ public:
 	void add_io_job(int fd, int thrd_index, CIoJob* ioJob);
 	void del_io_job(int fd, int thrd_index, CIoJob* ioJob);
 
+	void add_listen_fd(int fd);
+	void del_listen_fd(int fd);
+
 	void lock_fd(int fd);
 	void unlock_fd(int fd);
+
+	void lock_thrd(int thrd_index);
+	void unlock_thrd(int thrd_index);
+
+	void lock_proc();
+	void unlock_proc();
+	
 	int get_fd_thrd_index(int fd);
 	CIoJob* get_fd_io_job(int thrd_index, int fd);
 	
@@ -53,6 +63,15 @@ public:
 private:
 	fd_hdl_t m_fd_array[MAX_FD_CNT];
 	IOFD_LIST m_thrd_fds[MAX_THRD_CNT];
+
+	/*listen fds, all thread need to care it*/
+	IOFD_LIST m_listen_fds;
+
+#ifdef _WIN32
+	LONG m_thrd_locks[MAX_THRD_CNT+1];
+#else
+	pthread_spinlock_t m_thrd_locks[MAX_THRD_CNT+1];
+#endif
 };
 
 extern CIoJobMgr *g_IoJobMgr;

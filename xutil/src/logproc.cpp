@@ -474,10 +474,21 @@ DLL_API void logger_write(int level, const char *format, ...)
     va_list argp;
 
     time_t timer;
-	struct tm *now = NULL;
     time(&timer);
-    now = localtime(&timer);
-    sprintf(dateformat, "[%04d-%02d-%02d %02d:%02d:%02d]", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
+    struct tm now;
+    #ifdef _WIN32
+	localtime_s(&now, &timer);
+	#else
+	localtime_s(&timer, &now);
+	#endif
+
+    sprintf(dateformat, "[%04d-%02d-%02d %02d:%02d:%02d]", 
+    	now.tm_year + 1900, 
+    	now.tm_mon + 1, 
+    	now.tm_mday, 
+    	now.tm_hour, 
+    	now.tm_min, 
+    	now.tm_sec);
 
     va_start(argp, format);
     VSNPRINTF(src, MAX_LINE_LEN, format, argp);

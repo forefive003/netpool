@@ -36,6 +36,15 @@ CIoJobMgr::CIoJobMgr()
         pthread_spin_init(&m_fd_array[ii].data_lock, 0);
     #endif
     }
+
+    for(unsigned int ii = 0; ii < MAX_THRD_CNT+1; ii++)
+    {
+        #ifdef _WIN32
+        m_thrd_locks[ii] = 0;
+        #else
+		pthread_spin_init(&m_thrd_locks[ii], 0);
+        #endif
+    }
 }
 
 CIoJobMgr::~CIoJobMgr()
@@ -51,8 +60,63 @@ CIoJobMgr::~CIoJobMgr()
 #else
         pthread_spin_destroy(&m_fd_array[ii].data_lock);
 #endif
-    }    
+    } 
+
+
+    for(unsigned int ii = 0; ii < MAX_THRD_CNT+1; ii++)
+    {
+#ifdef _WIN32
+        m_thrd_locks[ii] = 0;
+#else
+		pthread_spin_destroy(&m_thrd_locks[ii]);
+#endif
+    }
 };
+
+void CIoJobMgr::lock_thrd(int thrd_index)
+{
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
+#ifdef _WIN32
+    while (InterlockedExchange(&m_thrd_locks[thrd_index], 1) == 1){
+        sleep_s(0);
+    }
+#else
+    pthread_spin_lock(&m_thrd_locks[thrd_index]);
+#endif
+}
+
+void CIoJobMgr::unlock_thrd(int thrd_index)
+{
+    assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
+#ifdef _WIN32
+    InterlockedExchange(&m_thrd_locks[thrd_index], 0);
+#else
+    pthread_spin_unlock(&m_thrd_locks[thrd_index]);
+#endif
+}
+
+void CIoJobMgr::lock_proc()
+{
+#ifdef _WIN32
+    while (InterlockedExchange(&m_thrd_locks[MAX_THRD_CNT], 1) == 1){
+        sleep_s(0);
+    }
+#else
+    pthread_spin_lock(&m_thrd_locks[MAX_THRD_CNT]);
+#endif
+}
+
+void CIoJobMgr::unlock_proc()
+{
+#ifdef _WIN32
+    InterlockedExchange(&m_thrd_locks[MAX_THRD_CNT], 0);
+#else
+    pthread_spin_unlock(&m_thrd_locks[MAX_THRD_CNT]);
+#endif
+}
+
 void CIoJobMgr::lock_fd(int fd)
 {
     assert(fd >= 0 && fd < MAX_FD_CNT);
@@ -115,7 +179,9 @@ void CIoJobMgr::add_io_job(int fd, int thrd_index, CIoJob* ioJob)
     m_fd_array[fd].ioJob = ioJob;
     m_fd_array[fd].thrd_index = thrd_index;
 
+    this->lock_thrd(thrd_index);
     m_thrd_fds[thrd_index].push_back(fd);
+    this->unlock_thrd(thrd_index);
     return;
 }
 
@@ -130,16 +196,17 @@ void CIoJobMgr::del_io_job(int fd, int thrd_index, CIoJob* ioJob)
         return;
     }
 
-    g_IoJobMgr->lock_fd(fd);
-
+    this->lock_thrd(thrd_index);
     m_thrd_fds[thrd_index].remove(fd);
+    this->unlock_thrd(thrd_index);
 
+    this->lock_fd(fd);
     /*reinit data*/
     m_fd_array[fd].fd = -1;
     m_fd_array[fd].thrd_index = INVALID_THRD_INDEX;
     m_fd_array[fd].ioJob = NULL;
 
-    g_IoJobMgr->unlock_fd(fd);
+    this->unlock_fd(fd);
     return;
 }
 
@@ -151,6 +218,31 @@ int CIoJobMgr::walk_to_set_sets(fd_set *rset, fd_set *wset, fd_set *eset, int th
     int maxFd = 0;
 
     assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
+    for (itr = m_listen_fds.begin();
+            itr != m_listen_fds.end(); )
+    {
+        io_fd = *itr;
+        /*maybe timenode deleted in callback func, after that, itr not valid*/
+        itr++;
+
+        assert(io_fd >= 0 && io_fd < MAX_FD_CNT);
+
+        if (NULL == m_fd_array[io_fd].ioJob)
+        {
+            _LOG_ERROR("fd %d has no job when set fdsets", io_fd);
+            continue;
+        }
+        
+        if (io_fd > maxFd)
+        {
+            maxFd = io_fd;
+        }
+
+        FD_SET(io_fd, rset);
+        FD_SET(io_fd, eset);
+    }
+
 
     for (itr = m_thrd_fds[thrd_index].begin();
             itr != m_thrd_fds[thrd_index].end(); )
@@ -210,6 +302,31 @@ void CIoJobMgr::walk_to_handle_sets(fd_set *rset, fd_set *wset, fd_set *eset, in
     CIoJob *pIoJob = NULL;
 
     assert(thrd_index >= 0 && thrd_index < MAX_THRD_CNT);
+
+    /*handle accept fd firstly*/
+    for (itr = m_listen_fds.begin();
+            itr != m_listen_fds.end(); )
+    {
+        io_fd = *itr;
+        /*maybe timenode deleted in callback func, after that, itr not valid*/
+        itr++;
+
+        assert(io_fd >= 0 && io_fd < MAX_FD_CNT);
+        if(FD_ISSET(io_fd, rset))
+        {
+            //_LOG_ERROR("test, accept wakeup, fd %d, thrd %d", io_fd, thrd_index);
+            /*clear it from rset, make next loop could not handle it*/
+            FD_CLR(io_fd, rset);
+
+            pIoJob = m_fd_array[io_fd].ioJob;
+            if (NULL == pIoJob)
+            {
+                _LOG_ERROR("fd %d has no job when set fdsets", io_fd);
+                continue;
+            }
+            pIoJob->read_evt_handle();
+        }
+    }
 
     for (itr = m_thrd_fds[thrd_index].begin();
             itr != m_thrd_fds[thrd_index].end(); )
@@ -330,3 +447,18 @@ int CIoJobMgr::get_fd_cnt_on_thrd(int thrd_index)
     }
     return ret;
 }
+
+void CIoJobMgr::add_listen_fd(int fd)
+{
+    this->lock_proc();
+    m_listen_fds.push_back(fd);
+    this->unlock_proc();
+}
+
+void CIoJobMgr::del_listen_fd(int fd)
+{
+    this->lock_proc();
+    m_listen_fds.remove(fd);
+    this->unlock_proc();
+}
+
