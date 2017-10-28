@@ -479,7 +479,7 @@ DLL_API void logger_write(int level, const char *format, ...)
     #ifdef _WIN32
 	localtime_s(&now, &timer);
 	#else
-	localtime_s(&timer, &now);
+	localtime_r(&timer, &now);
 	#endif
 
     sprintf(dateformat, "[%04d-%02d-%02d %02d:%02d:%02d]", 
