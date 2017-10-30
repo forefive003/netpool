@@ -622,6 +622,11 @@ void CNetRecv::free()
     {
         np_del_io_job(this->m_fd, CNetRecv::_free_callback);
     }
+    else
+    {
+        /*must pause read, otherwise read evt or close evt comming continus, but we don't care it now*/
+        np_pause_read_on_job(this->m_fd);
+    }
 
     MUTEX_UNLOCK(m_free_lock);
     return;
