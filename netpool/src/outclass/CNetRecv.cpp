@@ -93,7 +93,6 @@ void CNetRecv::init_common_data()
 {
     m_is_connected = false;
     m_is_pause_read = false;
-    m_is_fwd_server = true;
 
     m_ipaddr = 0;
     memset(m_ipstr, 0, sizeof(m_ipstr));
@@ -191,16 +190,6 @@ int CNetRecv::send_pre_handle()
 
 int CNetRecv::send_post_handle()
 {
-    if (m_is_fwd_server == false)
-    {
-        MUTEX_LOCK(this->m_free_lock);
-        if (m_is_pause_read)
-        {
-            this->resume_read();
-        }
-        MUTEX_UNLOCK(this->m_free_lock);
-    }
-    
     return 0;
 }
 
@@ -563,14 +552,6 @@ int CNetRecv::send_data(char *buf, int buf_len)
         return -1;
     }
 
-    if (m_is_fwd_server == false)
-    {
-        if (m_send_q.node_cnt() >= m_send_q_busy_cnt)
-        {
-            this->pause_read();
-        }
-    }
-
     ret = this->register_write();
     MUTEX_UNLOCK(m_free_lock);
 
@@ -591,6 +572,11 @@ BOOL CNetRecv::is_connected()
 BOOL CNetRecv::is_freeing()
 {
     return m_is_freeing;
+}
+
+BOOL CNetRecv::is_send_busy()
+{
+    return (m_send_q.node_cnt() >= m_send_q_busy_cnt)
 }
 
 int CNetRecv::init()

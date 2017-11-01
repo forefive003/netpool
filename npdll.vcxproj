@@ -152,6 +152,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="netpool\include\CConnPool.h" />
     <ClInclude Include="netpool\include\CNetAccept.h" />
     <ClInclude Include="netpool\include\CNetRecv.h" />
     <ClInclude Include="netpool\include\CSocksMem.h" />
@@ -221,6 +222,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="netpool\src\netpool.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="netpool\src\outclass\CConnPool.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="netpool\src\outclass\CNetAccept.cpp">
