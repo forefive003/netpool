@@ -22,16 +22,39 @@
 CConnPool::CConnPool(int maxConnCnt)
 {
     m_max_conn_cnt = maxConnCnt;
+    m_free_conns = NULL;
     m_conns_array = new conn_obj_t[maxConnCnt];
     for (int ii = 0; ii < maxConnCnt; ii++)
     {
-    	m_conns_array[ii].connObj = NULL;
+        /*init node*/
+        m_conns_array[ii].next = NULL;
+        m_conns_array[ii].index = ii;        
+        m_conns_array[ii].connObj = NULL;
+
     #ifdef _WIN32
         m_conns_array[ii].data_lock = 0;
     #else
         pthread_spin_init(&m_conns_array[ii].data_lock, 0);
     #endif
+
+        /*add to free list*/
+        if (m_free_conns == NULL)
+        {
+            m_free_conns = &m_conns_array[ii];
+        }
+        else
+        {
+            /*add to tail*/
+            m_conns_array[ii].next = m_free_conns->next;
+            m_free_conns->next = &m_conns_array[ii];
+        }
     }
+
+    #ifdef _WIN32
+        m_data_lock = 0;
+    #else
+        pthread_spin_init(&m_data_lock, 0);
+    #endif
 }
 
 CConnPool::~CConnPool()
@@ -50,6 +73,12 @@ CConnPool::~CConnPool()
     } 
 
 	delete []m_conns_array;
+
+#ifdef _WIN32
+        m_data_lock = 0;
+#else
+        pthread_spin_destroy(&m_data_lock);
+#endif
 }
 
 void CConnPool::lock_index(int index)
@@ -76,33 +105,69 @@ void CConnPool::unlock_index(int index)
 #endif
 }
 
-int CConnPool::add_conn_obj(int index, CNetRecv *connObj)
+void CConnPool::lock()
 {
-    assert(index >= 0 && index < m_max_conn_cnt);
+#ifdef _WIN32
+    while (InterlockedExchange(&m_data_lock, 1) == 1){
+        sleep_s(0);
+    }
+#else
+    pthread_spin_lock(&m_data_lock);
+#endif
+}
 
-    if (m_conns_array[index].connObj != NULL)
+void CConnPool::unlock()
+{
+#ifdef _WIN32
+    InterlockedExchange(&m_data_lock, 0);
+#else
+    pthread_spin_unlock(&m_data_lock);
+#endif
+}
+
+int CConnPool::add_conn_obj(CNetRecv *connObj)
+{
+    conn_obj_t *poolNode = NULL;
+
+    this->lock();
+    poolNode = m_free_conns;
+    if(m_free_conns != NULL);
+    {
+        m_free_conns = m_free_conns->next;
+    }
+    this->unlock();
+
+    if (NULL == poolNode)
+    {
+        return -1;
+    }
+
+    assert(poolNode->index >= 0 && poolNode->index < m_max_conn_cnt);
+
+    if (poolNode->connObj != NULL)
     {
         _LOG_ERROR("connPool index %d already has one obj", index);
 		assert(0);
         return -1;
     }
-    m_conns_array[index].connObj = connObj;
-    return 0;
+    poolNode->connObj = connObj;
+    return poolNode->index;
 }
 
 void CConnPool::del_conn_obj(int index)
 {
+    conn_obj_t *poolNode = NULL;
     assert(index >= 0 && index < m_max_conn_cnt);
-
-    if (m_conns_array[index].connObj == NULL)
-    {
-        _LOG_ERROR("connPool index %d has no obj when del.", index);
-        return;
-    }
 
     this->lock_index(index);
     m_conns_array[index].connObj = NULL;
     this->unlock_index(index);
+
+    this->lock();
+    m_conns_array[index]->next = m_free_conns;
+    m_free_conns = &m_conns_array[index];
+    this->unlock();
+
     return;
 }
 
