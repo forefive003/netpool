@@ -576,7 +576,7 @@ BOOL CNetRecv::is_freeing()
 
 BOOL CNetRecv::is_send_busy()
 {
-    return (m_send_q.node_cnt() >= m_send_q_busy_cnt)
+	return (m_send_q.node_cnt() >= m_send_q_busy_cnt);
 }
 
 int CNetRecv::init()

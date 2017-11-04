@@ -125,13 +125,18 @@ void CConnPool::unlock()
 #endif
 }
 
+CNetRecv* CConnPool::get_conn_obj(int index)
+{
+    return m_conns_array[index].connObj;
+}
+
 int CConnPool::add_conn_obj(CNetRecv *connObj)
 {
     conn_obj_t *poolNode = NULL;
 
     this->lock();
     poolNode = m_free_conns;
-    if(m_free_conns != NULL);
+    if(m_free_conns != NULL)
     {
         m_free_conns = m_free_conns->next;
     }
@@ -146,7 +151,7 @@ int CConnPool::add_conn_obj(CNetRecv *connObj)
 
     if (poolNode->connObj != NULL)
     {
-        _LOG_ERROR("connPool index %d already has one obj", index);
+		_LOG_ERROR("connPool index %d already has one obj", poolNode->index);
 		assert(0);
         return -1;
     }
@@ -156,7 +161,6 @@ int CConnPool::add_conn_obj(CNetRecv *connObj)
 
 void CConnPool::del_conn_obj(int index)
 {
-    conn_obj_t *poolNode = NULL;
     assert(index >= 0 && index < m_max_conn_cnt);
 
     this->lock_index(index);
@@ -164,7 +168,7 @@ void CConnPool::del_conn_obj(int index)
     this->unlock_index(index);
 
     this->lock();
-    m_conns_array[index]->next = m_free_conns;
+    m_conns_array[index].next = m_free_conns;
     m_free_conns = &m_conns_array[index];
     this->unlock();
 
@@ -183,6 +187,22 @@ int CConnPool::send_on_conn_obj(int index, char *buf, int buf_len)
     }
 	ret = m_conns_array[index].connObj->send_data(buf, buf_len);
 	this->unlock_index(index);
+    return ret;
+}
+
+BOOL CConnPool::is_conn_obj_send_busy(int index)
+{
+    BOOL ret = 0;
+    
+    this->lock_index(index);
+    if (NULL == m_conns_array[index].connObj)
+    {
+        this->unlock_index(index);
+        return FALSE;
+    }
+    ret = m_conns_array[index].connObj->is_send_busy();
+    this->unlock_index(index);
+    
     return ret;
 }
 

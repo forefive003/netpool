@@ -4,9 +4,9 @@
 #include "list.h"
 #include "CNetRecv.h"
 
-typedef struct
+typedef struct conn_obj
 {
-	conn_obj_t *next;
+	struct conn_obj *next;
 
 #ifdef _WIN32
 	LONG data_lock;
@@ -53,6 +53,7 @@ public:
 	CNetRecv* get_conn_obj(int index);
 
 	int send_on_conn_obj(int index, char *buf, int buf_len);
+	BOOL is_conn_obj_send_busy(int index);
 
 public:
 	int m_max_conn_cnt;
