@@ -104,26 +104,34 @@ int CSocksSendQ::send_buf_node(int fd, buf_node_t *buf_node)
         send_len = send(fd, &buf_node->data[buf_node->consume_pos], spare_len, 0);
         if (send_len < 0)
         {
+#ifdef _WIN32
+            DWORD dwError = WSAGetLastError();
+            if (dwError == WSAEINTR || dwError == WSAEWOULDBLOCK)
+            {
+                break;
+            }
+            else
+            {
+                _LOG_WARN("fd %d send failed, %d.", fd, dwError);
+                return -1;
+            }
+#else
             if (errno == EWOULDBLOCK || errno == EAGAIN)
             {
                 break;
             }
             else if (errno == EINTR)
-            { 
+            {
                 _LOG_WARN("EINTR occured, continue write");
                 continue;
             }
             else
             {
                 char err_buf[64] = {0};
-#ifdef _WIN32
-                _LOG_ERROR("fd %d send failed, %d.", fd, WSAGetLastError());
-#else
-                _LOG_ERROR("fd %d send failed, %s.", fd, str_error_s(err_buf, 32, errno));
-#endif
-                /*返回-1后直接free, 类似recv处理失败*/
+                _LOG_WARN("fd %d send failed, %s.", fd, str_error_s(err_buf, 32, errno));
                 return -1;
             }
+#endif
         }
         else
         {
