@@ -102,7 +102,8 @@ void CNetRecv::init_common_data()
     memset(m_local_ipstr, 0, sizeof(m_local_ipstr));
     m_local_port = 0;
 
-    m_send_q_busy_cnt = 8;
+    m_send_q_busy_threshold = 32;
+    m_send_q_free_threshold = 8;
 
     m_thrd_index = INVALID_THRD_INDEX;
     m_is_async_write = true;
@@ -178,6 +179,12 @@ int CNetRecv::init_local_ipinfo()
     return 0;
 }
 
+void CNetRecv::set_flow_control(unsigned int busy_threshold, unsigned int free_threshold)
+{
+    m_send_q_busy_threshold = busy_threshold;
+    m_send_q_free_threshold = free_threshold;
+}
+
 int CNetRecv::connect_handle(BOOL result)
 {
     return 0;
@@ -226,14 +233,11 @@ void CNetRecv::_send_callback(int  fd, void* param1)
         goto exitAndTryfreeSelf;
     }
 
-    if (recvObj->m_send_q.node_cnt() < recvObj->m_send_q_busy_cnt)
+    if (-1 == recvObj->send_post_handle())
     {
-        if (-1 == recvObj->send_post_handle())
-        {
-            recvObj->m_send_q.clean_q();
-            _LOG_ERROR("(%s/%u) fd %d post-send handle failed", recvObj->m_ipstr, recvObj->m_port, fd);
-            goto exitAndTryfreeSelf;
-        }
+        recvObj->m_send_q.clean_q();
+        _LOG_ERROR("(%s/%u) fd %d post-send handle failed", recvObj->m_ipstr, recvObj->m_port, fd);
+        goto exitAndTryfreeSelf;
     }
 
     if(recvObj->m_send_q.node_cnt() > 0)
@@ -574,10 +578,16 @@ BOOL CNetRecv::is_freeing()
     return m_is_freeing;
 }
 
-BOOL CNetRecv::is_send_busy()
+BOOL CNetRecv::is_sendq_busy()
 {
-	return (m_send_q.node_cnt() >= m_send_q_busy_cnt);
+	return (m_send_q.node_cnt() >= m_send_q_busy_threshold);
 }
+
+BOOL CNetRecv::is_sendq_free()
+{
+    return (m_send_q.node_cnt() <= m_send_q_free_threshold);
+}
+
 
 int CNetRecv::init()
 {

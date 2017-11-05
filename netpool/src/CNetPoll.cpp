@@ -396,10 +396,11 @@ void CNetPoll::pause_io_reading_evt(int thrd_index, CIoJob *jobNode)
 	{
 		return;
 	}
-#ifndef _WIN32
+
 	char err_buf[64] = {0};
 	if (jobNode->io_event_write())
 	{
+#ifndef _WIN32
 		/*modify*/
 		struct epoll_event ev;
 
@@ -409,26 +410,24 @@ void CNetPoll::pause_io_reading_evt(int thrd_index, CIoJob *jobNode)
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_MOD, jobNode->get_fd(), &ev) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_MOD failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
+			return;
 		}
-		else
-		{
-			_LOG_DEBUG("pause read event from io job, fd %d on thrd %d.", jobNode->get_fd(), thrd_index);
-		}
+#endif
+		_LOG_INFO("pause read event from io job, fd %d on thrd %d.", jobNode->get_fd(), thrd_index);
 	}
 	else
 	{
+#ifndef _WIN32
 		/*del*/
 		if(epoll_ctl(m_epfd[thrd_index], EPOLL_CTL_DEL, jobNode->get_fd(), NULL) != 0)
 		{
 			_LOG_ERROR("EPOLL_CTL_DEL failed on thrd %d, %s.", thrd_index, str_error_s(err_buf, sizeof(err_buf), errno));
+			return;
 		}
-		else
-		{
-			_LOG_DEBUG("pause read event from io job, fd %d on thrd %d, no event now.", 
-				jobNode->get_fd(), thrd_index);
-		}
-	}
 #endif
+		_LOG_INFO("pause read event from io job, fd %d on thrd %d, no event now.", 
+			jobNode->get_fd(), thrd_index);
+	}
 
 	jobNode->del_read_io_event();
 }
@@ -1181,6 +1180,7 @@ BOOL CNetPoll::pause_io_reading_evt(int fd)
 	int thrd_index = g_IoJobMgr->get_fd_thrd_index(fd);
 	if (INVALID_THRD_INDEX == thrd_index)
 	{
+		_LOG_ERROR("My God! thrd index %d is invalid", thrd_index);
 		return false;
 	}
 

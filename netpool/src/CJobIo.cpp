@@ -96,6 +96,7 @@ void CWrIoJob::write_evt_handle()
 	/*not register write evt, avoid loop*/
 	g_NetPoll->pause_io_writing_evt(g_IoJobMgr->get_fd_thrd_index(m_fd), this);
 	/*call back*/
+	assert(m_write_func != NULL);
 	m_write_func(m_fd, m_param1);
 }
 
@@ -162,6 +163,7 @@ void CTcpJob::read_evt_handle()
 			recvEnd = true;
 		}
 
+		assert(m_read_func != NULL);
 		m_read_func(m_fd, m_param1, m_cache_buf, recvLen);
 	}
 }
@@ -224,6 +226,7 @@ void CUdpJob::read_evt_handle()
 			recvEnd = true;
 		}
 
+		assert(m_read_func != NULL);
 		m_read_func(m_fd, m_param1, &cliAddrTmp, m_cache_buf, recvLen);
 	}
 }

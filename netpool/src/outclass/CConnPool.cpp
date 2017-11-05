@@ -183,22 +183,6 @@ int CConnPool::send_on_conn_obj(int index, char *buf, int buf_len)
     return ret;
 }
 
-BOOL CConnPool::is_conn_obj_send_busy(int index)
-{
-    BOOL ret = 0;
-    
-    this->lock_index(index);
-    if (NULL == m_conns_array[index].connObj)
-    {
-        this->unlock_index(index);
-        return FALSE;
-    }
-    ret = m_conns_array[index].connObj->is_send_busy();
-    this->unlock_index(index);
-    
-    return ret;
-}
-
 int CConnPool::init()
 {
 	return 0;

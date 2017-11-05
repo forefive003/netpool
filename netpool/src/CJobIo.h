@@ -105,6 +105,7 @@ class CListenJob: public CIoJob
 {
 public:
 	CListenJob(int fd, void *param1) : CIoJob(fd, param1){
+		m_accept_func = NULL;
 	}
     virtual ~CListenJob() {
     };
@@ -140,6 +141,7 @@ class CWrIoJob: public CIoJob
 {
 public:
 	CWrIoJob(int fd, void *param1) : CIoJob(fd, param1){
+		m_write_func = NULL;
 	}
     virtual ~CWrIoJob() {
     };
@@ -159,6 +161,7 @@ public:
 	CTcpJob(int fd, void *param1) : CWrIoJob(fd, param1){
 		m_cache_len = 0;
 		m_cache_buf = NULL;
+		m_read_func = NULL;
 	}
 	virtual ~CTcpJob() {
     	if (NULL != m_cache_buf)
