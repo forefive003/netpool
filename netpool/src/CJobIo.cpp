@@ -132,7 +132,8 @@ void CTcpJob::read_evt_handle()
 			}
 
 			char err_buf[64] = {0};
-			_LOG_ERROR("read failed [%d]", dwError);
+			_LOG_ERROR("read failed [%d], fd %d, param1 %p, read_func %p", 
+					dwError, m_fd, m_param1, m_read_func);
 #else
 			if (errno == EWOULDBLOCK || errno == EAGAIN)
 			{
@@ -147,7 +148,8 @@ void CTcpJob::read_evt_handle()
 			else
 			{
 				char err_buf[64] = {0};
-				_LOG_ERROR("read failed [%s]", str_error_s(err_buf, 32, errno));
+				_LOG_ERROR("read failed [%s], fd %d, param1 %p, read_func %p", 
+					str_error_s(err_buf, 32, errno), m_fd, m_param1, m_read_func);
 			}
 #endif
 

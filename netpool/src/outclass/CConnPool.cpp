@@ -31,11 +31,14 @@ CConnPool::CConnPool(int maxConnCnt)
         m_conns_array[ii].index = ii;        
         m_conns_array[ii].connObj = NULL;
 
-    #ifdef _WIN32
-        m_conns_array[ii].data_lock = 0;
-    #else
-        pthread_spin_init(&m_conns_array[ii].data_lock, 0);
-    #endif
+#ifndef _WIN32
+        pthread_mutexattr_t mux_attr;
+        memset(&mux_attr, 0, sizeof(mux_attr));
+        pthread_mutexattr_settype(&mux_attr, PTHREAD_MUTEX_RECURSIVE);
+        MUTEX_SETUP_ATTR(m_conns_array[ii].data_lock, &mux_attr);
+#else
+        MUTEX_SETUP(m_conns_array[ii].data_lock);
+#endif
 
         /*add to free list*/
         if (m_free_conns == NULL)
@@ -65,11 +68,8 @@ CConnPool::~CConnPool()
         {
             _LOG_ERROR("connObj %d not delete when destruct CConnPool", ii);
         }
-#ifdef _WIN32
-        m_conns_array[ii].data_lock = 0;
-#else
-        pthread_spin_destroy(&m_conns_array[ii].data_lock);
-#endif
+
+        MUTEX_CLEANUP(m_conns_array[ii].data_lock);
     } 
 
 	delete []m_conns_array;
@@ -85,24 +85,14 @@ void CConnPool::lock_index(int index)
 {
 	assert(index >= 0 && index < m_max_conn_cnt);
 
-#ifdef _WIN32
-	while (InterlockedExchange(&m_conns_array[index].data_lock, 1) == 1){
-        sleep_s(0);
-    }
-#else
-	pthread_spin_lock(&m_conns_array[index].data_lock);
-#endif
+    MUTEX_LOCK(m_conns_array[index].data_lock);
 }
 
 void CConnPool::unlock_index(int index)
 {
 	assert(index >= 0 && index < m_max_conn_cnt);
 
-#ifdef _WIN32
-	InterlockedExchange(&m_conns_array[index].data_lock, 0);
-#else
-	pthread_spin_unlock(&m_conns_array[index].data_lock);
-#endif
+    MUTEX_UNLOCK(m_conns_array[index].data_lock);
 }
 
 void CConnPool::lock()
@@ -156,6 +146,7 @@ int CConnPool::add_conn_obj(CNetRecv *connObj)
         return -1;
     }
     poolNode->connObj = connObj;
+    _LOG_INFO("add conn obj %p on index %d", connObj, poolNode->index);
     return poolNode->index;
 }
 
@@ -165,13 +156,15 @@ void CConnPool::del_conn_obj(int index)
 
     this->lock_index(index);
     m_conns_array[index].connObj = NULL;
-    this->unlock_index(index);
 
     this->lock();
     m_conns_array[index].next = m_free_conns;
     m_free_conns = &m_conns_array[index];
     this->unlock();
 
+    this->unlock_index(index);
+
+    _LOG_INFO("del conn obj on index %d", index);
     return;
 }
 
