@@ -29,6 +29,7 @@
 const char* g_thrd_com_msg_desc[] = 
 {
     "MSG_INVALID",
+    "MSG_DEL_IO",
     "MSG_ADD_LISTEN_IO",
     "MSG_DEL_LISTEN_IO",
     "MSG_ADD_READ_IO",
@@ -131,7 +132,7 @@ int CThrdComServ::send_comm_msg(int type, char *buffer, int buffer_len)
     close(s);
 #endif
 
-    _LOG_DEBUG("send comm msg (%S) on thrd %d", g_thrd_com_msg_desc[type], m_thrd_index);
+    _LOG_DEBUG("send comm msg (%s) on thrd %d", g_thrd_com_msg_desc[type], m_thrd_index);
     return 0;
 }
 
